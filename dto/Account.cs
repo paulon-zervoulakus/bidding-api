@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Models;
 
 namespace DTO.Account
 {
@@ -25,12 +26,22 @@ namespace DTO.Account
         public DateTime DateOfBirth { get; set; }
     }
 
-    public class LoginDto
+    public class LoginRequestDto
     {
         [Required]
         [EmailAddress(ErrorMessage ="Please enter a valid email address.")]
         public string Email { get; set; } = ""; // username 
         [Required]
         public string Password { get; set; } = "";
+    }
+
+    public class LoginResponseDto
+    {
+        public string UserName { get; set; }
+        public string FullName { get; set; }
+        public string Email { get; set; }
+        public int Role { get; set; } = 0;
+        public int Gender { get; set; } = 0;    
+        public DateTime LastLoggedIn { get; set; }        
     }
 }
