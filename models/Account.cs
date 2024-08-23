@@ -13,6 +13,8 @@ namespace Models
         public bool IsLoggedIn { get; set; } = false;
         public RoleEnumerated Role { get; set; } = RoleEnumerated.Guest;
         public GenderEnumerated Gender { get; set; } = GenderEnumerated.Hidden;
+        public string? RefreshToken { get; set;}
+        public DateTime RefreshTokenExpiry { get; set;}
 
     }    
     public enum GenderEnumerated {

@@ -1,6 +1,7 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Runtime.CompilerServices;
 using System.Security.Claims;
+using System.Security.Cryptography;
 using System.Text;
 using DTO.Account;
 using Microsoft.AspNetCore.Authorization;
@@ -28,8 +29,23 @@ namespace Controllers {
         
         [HttpGet("logout")]
         [Authorize]
-        public IActionResult Logout()
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<IActionResult> Logout()
         {                    
+
+            var emailIdentity = HttpContext.User.Identity?.Name;
+            if (emailIdentity is null)
+                return Unauthorized();
+
+            var user = await _context.Accounts.FirstOrDefaultAsync(x => x.Email == emailIdentity);
+             if (user is null)
+                return Unauthorized();
+
+            user.RefreshToken = null;
+            await _context.SaveChangesAsync();
+
             var token = Request.Cookies["access_token"];
             if (token == null)
                 return BadRequest("Token is required.");
@@ -42,13 +58,15 @@ namespace Controllers {
                 Expires = DateTime.UtcNow.AddMinutes(-2),
                 Path = "/"
             });
-
             return Ok(new { message = "Session ended." });
 
         }
 
         [HttpPost("login")]
-        public async Task<IActionResult> Login([FromBody] LoginDto loginDto)
+        [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(LoginResponseDto))]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<IActionResult> Login([FromBody] LoginRequestDto loginDto)
         {
             // Validate user credentials (replace with actual validation)
             if (loginDto.Email == "" || loginDto.Password == "")
@@ -71,11 +89,16 @@ namespace Controllers {
                     return Unauthorized("Invalid credentials.");
                 }
 
+                // Refresh Token
+                DateTime refreshTokenExpiry = DateTime.UtcNow.AddHours(1);
+                var refreshToken = GenerateRefreshToken();
+                user.RefreshToken = refreshToken;
+                user.RefreshTokenExpiry = refreshTokenExpiry;
                 user.LastLoggedIn = DateTime.UtcNow;
                 await _context.SaveChangesAsync();
-
-                DateTime expirationDate = DateTime.UtcNow.AddMinutes(2);
-
+                
+                // Access Token
+                DateTime expirationDate = DateTime.UtcNow.AddMinutes(15);
                 var token = GenerateJwtToken(user, expirationDate);
                 var cookieOptions = new CookieOptions
                 {
@@ -85,24 +108,44 @@ namespace Controllers {
                     Expires = expirationDate,
                     Path = "/"
                 };
-
                 Response.Cookies.Append("access_token", token, cookieOptions);
-                return Ok(new { Token = token, Profile = user });
 
-            }catch(Exception err){
+
+                // return Ok(new { Token = token, Profile = user });
+                return Ok(new LoginResponseDto {
+                    UserName = user.UserName,
+                    FullName = user.FullName,
+                    Email = user.Email,
+                    Role = (int)user.Role,
+                    Gender = (int)user.Gender,
+                    LastLoggedIn = user.LastLoggedIn
+                });
+
+            }catch{
                 return BadRequest("Connection error: Database connection closed.");
             }
             
+        }
+        private static string GenerateRefreshToken()
+        {
+            var randomNumber = new byte[64];
+
+            using var generator = RandomNumberGenerator.Create();
+
+            generator.GetBytes(randomNumber);
+
+            return Convert.ToBase64String(randomNumber);
         }
 
         private string GenerateJwtToken(AccountModel accountProfile, DateTime expirationDate)
         {
             var tokenHandler = new JwtSecurityTokenHandler();
-            var key = Encoding.ASCII.GetBytes(_configuration["Jwt:Key"]);
+            var key = Encoding.ASCII.GetBytes(_configuration["Jwt:Key"] ?? throw new InvalidOperationException("Secret not configured"));
             var tokenDescriptor = new SecurityTokenDescriptor
             {
                 Subject = new ClaimsIdentity(
                 [
+                    new Claim(ClaimTypes.Name, accountProfile.Email),
                     new Claim("Id", accountProfile.Id.ToString()),
                     new Claim("UserName", accountProfile.UserName),
                     new Claim("Email", accountProfile.Email),
@@ -110,6 +153,8 @@ namespace Controllers {
                     new Claim("Role", accountProfile.Role.ToString()),
                     new Claim("Gender", accountProfile.Gender.ToString()),
                     new Claim("LastLoggedIn", accountProfile.LastLoggedIn.ToString()),
+                    new Claim("RefreshToken", accountProfile.RefreshToken ?? ""),
+
                 ]),
                 Expires = expirationDate,
                 Issuer = _configuration["Jwt:Issuer"],
@@ -119,47 +164,72 @@ namespace Controllers {
             var token = tokenHandler.CreateToken(tokenDescriptor);
             return tokenHandler.WriteToken(token);
         }
-
-       
         
         [HttpGet("validate-token")]
         [Authorize] // Ensure that only authenticated requests can access this endpoint
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
         public IActionResult ValidateToken()
         {
             var token = Request.Cookies["access_token"];
             if (token == null)
-                return BadRequest("Token is required.");
+                return BadRequest("Invalid Token or expired.");
 
 
-            var tokenHandler = new JwtSecurityTokenHandler();
             try
             {
+                var tokenHandler = new JwtSecurityTokenHandler();
                 // Validate the token
                 tokenHandler.ValidateToken(token, new TokenValidationParameters
                 {
-                    ValidateIssuerSigningKey = true,
-                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Jwt:Key"])),
-                    ValidateIssuer = true,
+                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Jwt:Key"] ?? throw new InvalidOperationException("Secret not configured"))),
                     ValidIssuer = _configuration["Jwt:Issuer"],
-                    ValidateAudience = true,
                     ValidAudience = _configuration["Jwt:Audience"],
-                    ValidateLifetime = true,
-                    ClockSkew = TimeSpan.Zero
+                    // ClockSkew = TimeSpan.Zero,
+                    ValidateLifetime = false,
+                    ValidateIssuerSigningKey = true,
+                    ValidateIssuer = true,
+                    ValidateAudience = true
                 }, out SecurityToken validatedToken);
-
                 
                 var jwtToken = (JwtSecurityToken)validatedToken;
                 var claims = jwtToken.Claims.ToList();
                 
                 var Id = int.TryParse(claims.FirstOrDefault(x => x.Type == "Id")?.Value, out var id) ? id : 0;
-                var accountProfile = _context.Accounts.FirstOrDefault(x => x.Id == id);
-                if (accountProfile == null) return Unauthorized(new { message = "Token is invalid or expired."});
+                var accountProfile = _context.Accounts.FirstOrDefault(x => x.Id == id);                
+                if (accountProfile == null) return Unauthorized(new { message = "Invalid Token or expired."});
 
-                return Ok(new { message = "Token is valid.", accountProfile });
+                var refreshToken = claims.FirstOrDefault(x => x.Type == "RefreshToken") ?? null;
+                if (refreshToken == null) return Unauthorized(new { message = "Refresh Token expired." });
+
+                if (accountProfile.RefreshTokenExpiry < DateTime.UtcNow) return Unauthorized(new { message = "Refresh token expired.." });
+
+                // Renew Access Token
+                DateTime expirationDate = DateTime.UtcNow.AddMinutes(1);
+                var newtoken = GenerateJwtToken(accountProfile, expirationDate);
+                var cookieOptions = new CookieOptions
+                {
+                    HttpOnly = true,
+                    Secure = false, // Only send cookie over HTTPS
+                    SameSite = SameSiteMode.Lax, // Adjust based on your needs
+                    Expires = expirationDate,
+                    Path = "/"
+                };
+                Response.Cookies.Append("access_token", newtoken, cookieOptions);
+
+                return Ok(new {status = "token validated", message = "Access token revalidated and renew.", accountProfile = new {
+                    UserName = accountProfile.UserName,
+                    FullName = accountProfile.FullName,
+                    Email = accountProfile.Email,
+                    Role = (int)accountProfile.Role,
+                    Gender = (int)accountProfile.Gender,
+                    LastLoggedIn = accountProfile.LastLoggedIn
+                } });
             }
             catch (Exception ex)
             {
-                return Unauthorized(new { message = "Token is invalid or expired.", error = ex.Message });
+                return Unauthorized(new { message = "Invalid Token or expired.", error = ex.Message });
             }
         }
 
