@@ -57,9 +57,8 @@ builder.Services.AddAuthentication(options => {
                 var token = ctx.Request.Cookies["access_token"];
                 if (!string.IsNullOrEmpty(token))
                 {
-                    ctx.Token = token;
-                }
-                LogAttempt(ctx.Request.Headers, "OnMessageReceived");
+                    ctx.Token = token;                
+                }                
                 return Task.CompletedTask;
             },
             OnChallenge = ctx => LogAttempt(ctx.Request.Headers, "OnChallenge"),
