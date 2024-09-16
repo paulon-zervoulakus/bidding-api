@@ -1,0 +1,24 @@
+name: Enforce Merges to Release Branch
+
+on:
+  pull_request:
+    branches:
+      - staged
+
+jobs:
+  enforce-branch-strategy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Ensure PR is from features or hotfix or bugfix branch
+      run:  |
+        if [[ "${{ github.head_ref }}" == feature/* ]]; then
+          echo "Pull request is from a feature branch, proceeding.";
+        elif [[ "${{ github.head_ref }}" == hotfix/* ]]; then
+          echo "Pull request is from a hotfix branch, proceeding.";
+        elif [[ "${{ github.head_ref }}" == bugfix/* ]]; then
+          echo "Pull request is from a bugfix branch, proceeding.";
+        else
+          echo "Error: Pull requests to the 'staged' branch can only be merged from 'features/*' or 'hotfix/*' or 'bugfix/*' branches.";
+          exit 1;
+        fi
