@@ -25,7 +25,7 @@ namespace SignalR.Hubs
                 Console.WriteLine("BiddingHub : OnConnectedAsync");
                 _connections[Context.ConnectionId] = userEmail;
                 var activeEmailList = _connections.Values.Distinct().ToList();
-                await Clients.All.SendAsync("UpdateOnlineUsersMessage", activeEmailList);
+                await Clients.All.SendAsync("UpdateOnlineUsersList", activeEmailList);
             }
 
             await base.OnConnectedAsync();
@@ -41,7 +41,7 @@ namespace SignalR.Hubs
                 Console.WriteLine("BiddingHub : OnDisconnectedAsync : " + disconnectedEmail);
 
                 var activeEmailList = _connections.Values.Distinct().ToList();
-                await Clients.All.SendAsync("UpdateOnlineUsersMessage", activeEmailList);
+                await Clients.All.SendAsync("UpdateOnlineUsersList", activeEmailList);
             }
             await base.OnDisconnectedAsync(exception);
         }
