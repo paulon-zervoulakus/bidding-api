@@ -22,9 +22,10 @@ namespace SignalR.Hubs
             var userEmail = Context.User?.Identity?.Name;
             if (userEmail != null)
             {
+                Console.WriteLine("BiddingHub : OnConnectedAsync");
                 _connections[Context.ConnectionId] = userEmail;
                 var activeEmailList = _connections.Values.Distinct().ToList();
-                await Clients.All.SendAsync("UpdateOnlineUsersMessage", activeEmailList);
+                await Clients.All.SendAsync("UpdateOnlineUsersList", activeEmailList);
             }
 
             await base.OnConnectedAsync();
@@ -33,11 +34,14 @@ namespace SignalR.Hubs
 
         public override async Task OnDisconnectedAsync(Exception? exception)
         {
-            Console.WriteLine("BiddingHub - OnDisconnectedAsync");
+            var disconnectedId = Context.ConnectionId;
+            var disconnectedEmail = _connections[disconnectedId];
             if (_connections.TryRemove(Context.ConnectionId, out _)) {
                 // update online users
+                Console.WriteLine("BiddingHub : OnDisconnectedAsync : " + disconnectedEmail);
+
                 var activeEmailList = _connections.Values.Distinct().ToList();
-                await Clients.All.SendAsync("UpdateOnlineUsersMessage", activeEmailList);
+                await Clients.All.SendAsync("UpdateOnlineUsersList", activeEmailList);
             }
             await base.OnDisconnectedAsync(exception);
         }
@@ -71,6 +75,7 @@ namespace SignalR.Hubs
                     if (userEmail != null && _connections.Values.Contains(userEmail))
                     {
                         // Token is valid and user is registered
+                        Console.WriteLine("BiddingHub : ValidateSignalRToken :" + userEmail);
                         return true;
                     }
                     else
@@ -80,20 +85,20 @@ namespace SignalR.Hubs
                 }
                 catch
                 {
-                    System.Console.WriteLine("If signal R token validation fails, close the connection");
+                    Console.WriteLine("If signal R token validation fails, close the connection");
                     // If token validation fails, close the connection                    
                     return false;
                 }
             }
             else
             {
-                System.Console.WriteLine("If signal R token is missing, close the connection");
+                Console.WriteLine("If signal R token is missing, close the connection");
                 // If token is missing, close the connection
                 return false;
             }
         }
 
-       
+        // Token here is from UI hub parameter upon request
         public Task SendMessage(string message, string token)
         {
             if(ValidateSignalRToken(token)) {
@@ -102,6 +107,7 @@ namespace SignalR.Hubs
                 return Clients.All.SendAsync("ReceiveMessage", userEmail, message);
             }
             else {
+                // send denial message and deactivate the user who send the message with invalide token
                 return Clients.All.SendAsync("ReceiveMessage", "System", "Invalid token");
             }
         }

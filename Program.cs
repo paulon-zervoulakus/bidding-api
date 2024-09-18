@@ -63,20 +63,11 @@ builder.Services.AddAuthentication(options => {
                 if (!string.IsNullOrEmpty(token))
                 {
                     ctx.Token = token;                
-
-                    // // Extract signalr token from cookie
-                    // if (ctx.Request.Cookies.TryGetValue("signalr_token", out var signalr_token))                    
-                    // {
-                    //     ctx.HttpContext.Items["SignalRToken"] = signalr_token;
-                    // }
-                }
-
-                // LogAttempt(ctx.Request.Headers, "OnMessageReceived");
-                
+                }                
                 return Task.CompletedTask;
             },
-            OnChallenge = ctx => { Console.WriteLine("OnChallenge"); return Task.CompletedTask; }, //LogAttempt(ctx.Request.Headers, "OnChallenge"),
-            OnTokenValidated = ctx => { Console.WriteLine("OnTokenValidated");  return Task.CompletedTask; } //LogAttempt(ctx.Request.Headers, "OnTokenValidated")
+            OnChallenge = ctx => { return Task.CompletedTask; }, 
+            OnTokenValidated = ctx => { return Task.CompletedTask; } 
         };
     });
 
