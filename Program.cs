@@ -5,13 +5,18 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Models;
+using SignalR.Hubs;
 
-using var loggerFactory = LoggerFactory.Create(b => b.SetMinimumLevel(LogLevel.Trace).AddConsole());
+using var loggerFactory = LoggerFactory.Create(b => b.SetMinimumLevel(LogLevel.Information).AddConsole());
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.Services.AddSignalR();
+
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+        options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"))
+        // .EnableSensitiveDataLogging() 
+    );
 
 
 // Add services to the container.
@@ -40,9 +45,9 @@ builder.Services.AddAuthentication(options => {
         options.SaveToken = true;
         options.TokenValidationParameters = new TokenValidationParameters
         {
-            ValidIssuer = builder.Configuration["Jwt:Issuer"],
-            ValidAudience = builder.Configuration["Jwt:Audience"],
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"] ?? throw new InvalidOperationException("Secret not configured"))),
+            ValidIssuer = builder.Configuration["Jwt:Issuer"] ?? throw new InvalidOperationException("Jwt Issuer not configured"),
+            ValidAudience = builder.Configuration["Jwt:Audience"] ?? throw new InvalidOperationException("Jwt Audience not configured"),
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"] ?? throw new InvalidOperationException("Jwt key not configured"))),
             ClockSkew = new TimeSpan(0,0,5),
             ValidateIssuerSigningKey = true,
             ValidateIssuer = true,
@@ -61,8 +66,8 @@ builder.Services.AddAuthentication(options => {
                 }                
                 return Task.CompletedTask;
             },
-            OnChallenge = ctx => LogAttempt(ctx.Request.Headers, "OnChallenge"),
-            OnTokenValidated = ctx => LogAttempt(ctx.Request.Headers, "OnTokenValidated")
+            OnChallenge = ctx => { return Task.CompletedTask; }, 
+            OnTokenValidated = ctx => { return Task.CompletedTask; } 
         };
     });
 
@@ -94,9 +99,18 @@ app.UseRouting();
 app.UseAuthentication();
 app.UseAuthorization();
 
+app.UseEndpoints(endpoints =>
+{
+    // Map controllers to routes
+    _ = endpoints.MapControllers(); // Ensure this is included to map the controllers
 
-// Map controllers to routes
-app.MapControllers(); // Ensure this is included to map the controllers
+    // Map hub routes
+    _ = endpoints.MapHub<Bidding>("/subastaHub");
+});
+
+// app.MapControllers();
+// app.UseMiddleware<SignalRMiddleware>();
+// app.MapHub<Bidding>("/subastaHub");
 
 app.Run();
 

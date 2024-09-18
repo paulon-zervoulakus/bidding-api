@@ -1,7 +1,4 @@
 using System.IdentityModel.Tokens.Jwt;
-using System.Runtime.CompilerServices;
-using System.Security.Claims;
-using System.Security.Cryptography;
 using System.Text;
 using DTO.Account;
 using Microsoft.AspNetCore.Authorization;
@@ -10,7 +7,8 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Models;
-using TestData;
+using Tokens;
+
 
 namespace Controllers {
     [ApiController]
@@ -19,12 +17,16 @@ namespace Controllers {
         private readonly IConfiguration _configuration;
         private readonly ApplicationDbContext _context;
         private readonly IPasswordHasher<AccountModel> _passwordHasher;
+        private readonly int _accessTimeoutMinutes;
+        private readonly int _refreshTimeoutMinutes;
 
         public AccountController(ApplicationDbContext context, IPasswordHasher<AccountModel> passwordHasher, IConfiguration configuration)
         {
             _configuration = configuration; 
             _context = context;
             _passwordHasher = passwordHasher;
+            _accessTimeoutMinutes = Convert.ToInt32(_configuration["Token:AccessTimeoutMinutes"] ?? throw new InvalidOperationException("Token access timeout not configured"));
+            _refreshTimeoutMinutes = Convert.ToInt32(_configuration["Token:RefreshTimeoutMinutes"] ?? throw new InvalidOperationException("Token refresh timeout not configured"));
         }       
         
         [HttpGet("logout")]
@@ -58,14 +60,24 @@ namespace Controllers {
                 Expires = DateTime.UtcNow.AddMinutes(-2),
                 Path = "/"
             });
+
+            Response.Cookies.Append("signalr_token", token, new CookieOptions{
+                HttpOnly = false,
+                Secure = false, // Only send cookie over HTTPS
+                SameSite = SameSiteMode.Lax, // Adjust based on your needs
+                // Expires = DateTime.UtcNow.AddMinutes(-1),
+                Expires = DateTime.UtcNow.AddMinutes(-2),
+                Path = "/"
+            });
+
             return Ok(new { message = "Session ended." });
 
         }
 
         [HttpPost("login")]
-        [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(LoginResponseDto))]
-        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        // [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(LoginResponseDto))]
+        // [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        // [ProducesResponseType(StatusCodes.Status500InternalServerError)]
         public async Task<IActionResult> Login([FromBody] LoginRequestDto loginDto)
         {
             // Validate user credentials (replace with actual validation)
@@ -90,16 +102,16 @@ namespace Controllers {
                 }
 
                 // Refresh Token
-                DateTime refreshTokenExpiry = DateTime.UtcNow.AddHours(1);
-                var refreshToken = GenerateRefreshToken();
+                DateTime refreshTokenExpiry = DateTime.UtcNow.AddMinutes(_refreshTimeoutMinutes);
+                var refreshToken = AccountService.GenerateRefreshToken();
                 user.RefreshToken = refreshToken;
                 user.RefreshTokenExpiry = refreshTokenExpiry;
                 user.LastLoggedIn = DateTime.UtcNow;
                 await _context.SaveChangesAsync();
                 
                 // Access Token
-                DateTime expirationDate = DateTime.UtcNow.AddMinutes(15);
-                var token = GenerateJwtToken(user, expirationDate);
+                DateTime expirationDate = DateTime.UtcNow.AddMinutes(_accessTimeoutMinutes);
+                var token = AccountService.GenerateJwtToken(_configuration, user, expirationDate);
                 var cookieOptions = new CookieOptions
                 {
                     HttpOnly = true,
@@ -110,6 +122,16 @@ namespace Controllers {
                 };
                 Response.Cookies.Append("access_token", token, cookieOptions);
 
+                var signalrToken = AccountService.GenerateSignalRToken(_configuration, user, expirationDate);
+                var signalrCookieOptions = new CookieOptions
+                {
+                    Secure = false, // Only send cookie over HTTPS
+                    SameSite = SameSiteMode.Lax, // Adjust based on your needs
+                    Expires = expirationDate,
+                    HttpOnly = false,
+                    Path = "/"
+                };
+                Response.Cookies.Append("signalr_token", signalrToken, signalrCookieOptions);
 
                 // return Ok(new { Token = token, Profile = user });
                 return Ok(new LoginResponseDto {
@@ -126,50 +148,13 @@ namespace Controllers {
             }
             
         }
-        private static string GenerateRefreshToken()
-        {
-            var randomNumber = new byte[64];
-
-            using var generator = RandomNumberGenerator.Create();
-
-            generator.GetBytes(randomNumber);
-
-            return Convert.ToBase64String(randomNumber);
-        }
-
-        private string GenerateJwtToken(AccountModel accountProfile, DateTime expirationDate)
-        {
-            var tokenHandler = new JwtSecurityTokenHandler();
-            var key = Encoding.ASCII.GetBytes(_configuration["Jwt:Key"] ?? throw new InvalidOperationException("Secret not configured"));
-            var tokenDescriptor = new SecurityTokenDescriptor
-            {
-                Subject = new ClaimsIdentity(
-                [
-                    new Claim(ClaimTypes.Name, accountProfile.Email),
-                    new Claim("Id", accountProfile.Id.ToString()),
-                    new Claim("UserName", accountProfile.UserName),
-                    new Claim("Email", accountProfile.Email),
-                    new Claim("FullName", accountProfile.FullName),
-                    new Claim("Role", accountProfile.Role.ToString()),
-                    new Claim("Gender", accountProfile.Gender.ToString()),
-                    new Claim("LastLoggedIn", accountProfile.LastLoggedIn.ToString()),
-                    new Claim("RefreshToken", accountProfile.RefreshToken ?? ""),
-
-                ]),
-                Expires = expirationDate,
-                Issuer = _configuration["Jwt:Issuer"],
-                Audience = _configuration["Jwt:Audience"],
-                SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature)
-            };
-            var token = tokenHandler.CreateToken(tokenDescriptor);
-            return tokenHandler.WriteToken(token);
-        }
+        
         
         [HttpGet("validate-token")]
         [Authorize] // Ensure that only authenticated requests can access this endpoint
-        [ProducesResponseType(StatusCodes.Status200OK)]
-        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        // [ProducesResponseType(StatusCodes.Status200OK)]
+        // [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        // [ProducesResponseType(StatusCodes.Status500InternalServerError)]
         public IActionResult ValidateToken()
         {
             var token = Request.Cookies["access_token"];
@@ -206,8 +191,8 @@ namespace Controllers {
                 if (accountProfile.RefreshTokenExpiry < DateTime.UtcNow) return Unauthorized(new { message = "Refresh token expired.." });
 
                 // Renew Access Token
-                DateTime expirationDate = DateTime.UtcNow.AddMinutes(1);
-                var newtoken = GenerateJwtToken(accountProfile, expirationDate);
+                DateTime expirationDate = DateTime.UtcNow.AddMinutes(_accessTimeoutMinutes);
+                var newtoken = AccountService.GenerateJwtToken(_configuration, accountProfile, expirationDate);
                 var cookieOptions = new CookieOptions
                 {
                     HttpOnly = true,
@@ -218,6 +203,17 @@ namespace Controllers {
                 };
                 Response.Cookies.Append("access_token", newtoken, cookieOptions);
 
+                var signalrToken = AccountService.GenerateSignalRToken(_configuration, accountProfile, expirationDate);
+                var signalrCookieOptions = new CookieOptions
+                {
+                    Secure = false, // Only send cookie over HTTPS
+                    SameSite = SameSiteMode.Lax, // Adjust based on your needs
+                    Expires = expirationDate,
+                    HttpOnly = false,
+                    Path = "/"
+                };
+                Response.Cookies.Append("signalr_token", signalrToken, signalrCookieOptions);
+                
                 return Ok(new {status = "token validated", message = "Access token revalidated and renew.", accountProfile = new {
                     UserName = accountProfile.UserName,
                     FullName = accountProfile.FullName,
