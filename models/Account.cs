@@ -28,6 +28,7 @@ namespace biddingServer.Models
     {
         Guest = 1,
         Member = 2,
-        Administrator = 3
+        Administrator = 3,
+        Seller = 4
     }
 }
