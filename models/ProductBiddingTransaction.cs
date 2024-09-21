@@ -4,7 +4,7 @@ using System.Security.Cryptography;
 
 namespace biddingServer.Models
 {
-    public class ProductTransactionModel
+    public class ProductBiddingTransactionModel
     {
         [Key]
         public int Id { get; set; }

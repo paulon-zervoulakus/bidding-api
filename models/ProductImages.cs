@@ -4,7 +4,7 @@ using biddingServer.Models;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion.Internal;
 namespace biddingServer.Models
 {
-    public class ProductImagesModels
+    public class ProductImagesModel
     {
         [Key]
         public int Id { get; set; }
