@@ -11,7 +11,7 @@ namespace biddingServer.Models
         [Required]
         [ForeignKey("ProductModel")]
         public int ProductId { get; set; }
-        public required ProductModel Product { get; set; }
+        public ProductModel? Product { get; set; }
         public Boolean IsPrimary { get; set; } = false;
         [Required] // public uri path
         public required string OriginalSize { get; set; }

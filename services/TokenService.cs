@@ -29,7 +29,7 @@ namespace Tokens
                 Subject = new ClaimsIdentity(
                 [
                     new Claim(ClaimTypes.Name, accountProfile.Email),
-                    new Claim("Id", accountProfile.Id.ToString()),
+                    new Claim(ClaimTypes.NameIdentifier, accountProfile.Id.ToString()),
                     new Claim("UserName", accountProfile.UserName),
                     new Claim("Email", accountProfile.Email),
                     new Claim("FullName", accountProfile.FullName),

@@ -10,6 +10,7 @@ namespace biddingServer.Models
         [Required]
         [StringLength(255)]
         public string Title { get; set; } = string.Empty;
+        [StringLength(1024)]
         public string? Description { get; set; }
         [Column(TypeName = "decimal(10, 2)")]
         [Required]
@@ -21,13 +22,13 @@ namespace biddingServer.Models
         [ForeignKey("AccountModel")]
         [Required]
         public int SellerID { get; set; }
-        public required AccountModel Seller { get; set; }
+        public AccountModel? Seller { get; set; }
         public Boolean IsSerializable { get; set; } = false; // If true, ProductSerial count should match the quantity field
         public ProductConditionEnum ProductCondition { get; set; } = ProductConditionEnum.New; // enum
         [Required]
         [ForeignKey("ProductCategory")]
         public int ProductCategoryID { get; set; }
-        public required ProductCategoryModel Category { get; set; }
+        public ProductCategoryModel? Category { get; set; }
         [Required]
         public DateTime CreatedAt { get; set; }
         [Required]
