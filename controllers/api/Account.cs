@@ -8,6 +8,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using biddingServer.Models;
 using Tokens;
+using System.Security.Claims;
 
 
 namespace Controllers
@@ -189,7 +190,12 @@ namespace Controllers
                 var jwtToken = (JwtSecurityToken)validatedToken;
                 var claims = jwtToken.Claims.ToList();
 
-                var Id = int.TryParse(claims.FirstOrDefault(x => x.Type == "Id")?.Value, out var id) ? id : 0;
+                var nameIdClaim = claims.FirstOrDefault(x => x.Type == "nameid");
+                if (nameIdClaim == null || !int.TryParse(nameIdClaim.Value, out var id))
+                {
+                    return Unauthorized(new { message = "Invalid token: User ID claim is missing or invalid." });
+                }
+
                 var accountProfile = _context.Accounts.FirstOrDefault(x => x.Id == id);
                 if (accountProfile == null) return Unauthorized(new { message = "Invalid Token or expired." });
 

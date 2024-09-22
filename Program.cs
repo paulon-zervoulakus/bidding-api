@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using biddingServer.Models;
 using SignalR.Hubs;
+using biddingServer.services.product;
 
 using var loggerFactory = LoggerFactory.Create(b => b.SetMinimumLevel(LogLevel.Information).AddConsole());
 
@@ -79,6 +80,9 @@ builder.Services.AddAuthorization();
 
 // Register PasswordHasher
 builder.Services.AddScoped<IPasswordHasher<AccountModel>, PasswordHasher<AccountModel>>();
+builder.Services.AddScoped<IProductService, ProductService>();
+builder.Services.AddScoped<IProductCategoryService, ProductCategoryService>();
+builder.Services.AddScoped<IProductImagesService, ProductImagesService>();
 
 var app = builder.Build();
 

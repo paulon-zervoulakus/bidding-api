@@ -96,6 +96,7 @@ namespace biddingServer.Controllers.api
             // 5. Return the updated product
             return Ok(productInDb);
         }
+
         [HttpPost("product-addnew")]
         [Authorize(Roles = $"{nameof(RoleEnumerated.Administrator)}, {nameof(RoleEnumerated.Seller)}")]
         public async Task<ActionResult<ProductModel>> ProductAddNew([FromBody] ProductDTO product)
@@ -142,7 +143,7 @@ namespace biddingServer.Controllers.api
             return Ok(images);
         }
 
-        [HttpPost("upload")]
+        [HttpPost("product-image-upload")]
         [Authorize(Roles = $"{nameof(RoleEnumerated.Administrator)}, {nameof(RoleEnumerated.Seller)}")]
         public async Task<IActionResult> UploadProductImage(int productId, IFormFile imageFile)
         {
