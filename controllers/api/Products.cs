@@ -9,17 +9,21 @@ namespace biddingServer.Controllers.api
 {
     [ApiController]
     [Route("api/[controller]")]
-    public class ProductControllers(
-        IProductService productService,
-        IProductCategoryService productCategoryService,
-        IProductImagesService productImagesService
-    ) : ControllerBase
+    public class ProductController : ControllerBase
     {
-        // private readonly IConfiguration _configuration = configuration;
-        private readonly IProductService _productService = productService;
-        private readonly IProductCategoryService _productCategoryService = productCategoryService;
-        private readonly IProductImagesService _productImagesService = productImagesService;
+        private readonly IProductService _productService;
+        private readonly IProductCategoryService _productCategoryService;
+        private readonly IProductImagesService _productImagesService;
 
+        public ProductController(
+            IProductService productService,
+            IProductCategoryService productCategoryService,
+            IProductImagesService productImagesService)
+        {
+            _productService = productService;
+            _productCategoryService = productCategoryService;
+            _productImagesService = productImagesService;
+        }
         [HttpGet("categories")]
         [Authorize(Roles = nameof(RoleEnumerated.Administrator))]
         public async Task<ActionResult<ProductCategoryModel>> Categories()

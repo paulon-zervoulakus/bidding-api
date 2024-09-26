@@ -11,7 +11,7 @@ using Tokens;
 using System.Security.Claims;
 
 
-namespace Controllers
+namespace biddingServer.Controllers.api
 {
     [ApiController]
     [Route("api/[controller]")]

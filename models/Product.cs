@@ -26,7 +26,7 @@ namespace biddingServer.Models
         public Boolean IsSerializable { get; set; } = false; // If true, ProductSerial count should match the quantity field
         public ProductConditionEnum ProductCondition { get; set; } = ProductConditionEnum.New; // enum
         [Required]
-        [ForeignKey("ProductCategory")]
+        [ForeignKey("ProductCategoryModel")]
         public int ProductCategoryID { get; set; }
         public ProductCategoryModel? Category { get; set; }
         [Required]
