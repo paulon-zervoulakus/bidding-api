@@ -1,53 +1,70 @@
 using System.Collections.Concurrent;
+using System.ComponentModel.DataAnnotations;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.IdentityModel.Tokens;
+using biddingServer.dto.Hubs;
 
-namespace SignalR.Hubs 
-{    
+namespace SignalR.Hubs
+{
     [Authorize]
     public class Bidding : Hub
     {
         private readonly IConfiguration _configuration;
-        private static ConcurrentDictionary<string, string> _connections = new();
-        public Bidding(IConfiguration configuration){
+        private static ConcurrentDictionary<string, ConnectedUsersDTO> _connections = new();
+        public Bidding(IConfiguration configuration)
+        {
             _configuration = configuration;
         }
         public override async Task OnConnectedAsync()
         {
-            
-            var userEmail = Context.User?.Identity?.Name;
-            if (userEmail != null)
+            var connectedUser = new ConnectedUsersDTO
+            {
+                Email = Context.User?.Identity?.Name,
+                Fullname = Context.User?.Claims.FirstOrDefault(c => c.Type == "FullName")?.Value,
+                AvatarSrc = ""
+            };
+            if (connectedUser.Email != null)
             {
                 Console.WriteLine("BiddingHub : OnConnectedAsync");
-                _connections[Context.ConnectionId] = userEmail;
-                var activeEmailList = _connections.Values.Distinct().ToList();
-                await Clients.All.SendAsync("UpdateOnlineUsersList", activeEmailList);
+                _connections[Context.ConnectionId] = connectedUser;
+
+                // var activeEmailList = _connections.Values.Distinct().ToList();
+                var activeUserList = _connections.Values
+                    .GroupBy(user => user.Email)
+                    .Select(group => group.First()) // Take the first user for each email
+                    .ToList();
+                await Clients.All.SendAsync("UpdateOnlineUsersList", activeUserList);
             }
 
             await base.OnConnectedAsync();
         }
-           
+
 
         public override async Task OnDisconnectedAsync(Exception? exception)
         {
             var disconnectedId = Context.ConnectionId;
-            var disconnectedEmail = _connections[disconnectedId];
-            if (_connections.TryRemove(Context.ConnectionId, out _)) {
+            var disconnectedUser = _connections[disconnectedId];
+            if (_connections.TryRemove(Context.ConnectionId, out _))
+            {
                 // update online users
-                Console.WriteLine("BiddingHub : OnDisconnectedAsync : " + disconnectedEmail);
+                Console.WriteLine("BiddingHub : OnDisconnectedAsync : " + disconnectedUser.Fullname);
 
-                var activeEmailList = _connections.Values.Distinct().ToList();
-                await Clients.All.SendAsync("UpdateOnlineUsersList", activeEmailList);
+                // var activeEmailList = _connections.Values.Distinct().ToList();
+                var activeUserList = _connections.Values
+                    .GroupBy(user => user.Email)
+                    .Select(group => group.First()) // Take the first user for each email
+                    .ToList();
+                await Clients.All.SendAsync("UpdateOnlineUsersList", activeUserList);
             }
             await base.OnDisconnectedAsync(exception);
         }
 
         private bool ValidateSignalRToken(string accessToken)
-        {            
+        {
 
             if (accessToken != null)
             {
@@ -72,7 +89,7 @@ namespace SignalR.Hubs
 
                     // check claims name if it is registered in the _connection directory
                     var userEmail = principal.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Name)?.Value;
-                    if (userEmail != null && _connections.Values.Contains(userEmail))
+                    if (userEmail != null && _connections.Values.Any(c => c.Email == userEmail))
                     {
                         // Token is valid and user is registered
                         Console.WriteLine("BiddingHub : ValidateSignalRToken :" + userEmail);
@@ -86,7 +103,7 @@ namespace SignalR.Hubs
                 catch
                 {
                     Console.WriteLine("If signal R token validation fails, close the connection");
-                    // If token validation fails, close the connection                    
+                    // If token validation fails, close the connection
                     return false;
                 }
             }
@@ -101,12 +118,14 @@ namespace SignalR.Hubs
         // Token here is from UI hub parameter upon request
         public Task SendMessage(string message, string token)
         {
-            if(ValidateSignalRToken(token)) {
-                var userEmail = _connections[Context.ConnectionId];
+            if (ValidateSignalRToken(token))
+            {
+                var connectedUser = _connections[Context.ConnectionId];
                 // Use the userEmail to identify the sender
-                return Clients.All.SendAsync("ReceiveMessage", userEmail, message);
+                return Clients.All.SendAsync("ReceiveMessage", connectedUser.Fullname, message);
             }
-            else {
+            else
+            {
                 // send denial message and deactivate the user who send the message with invalide token
                 return Clients.All.SendAsync("ReceiveMessage", "System", "Invalid token");
             }
