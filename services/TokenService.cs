@@ -3,7 +3,7 @@ using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.IdentityModel.Tokens;
-using Models;
+using biddingServer.Models;
 
 namespace Tokens
 {
@@ -29,11 +29,12 @@ namespace Tokens
                 Subject = new ClaimsIdentity(
                 [
                     new Claim(ClaimTypes.Name, accountProfile.Email),
-                    new Claim("Id", accountProfile.Id.ToString()),
+                    new Claim(ClaimTypes.NameIdentifier, accountProfile.Id.ToString()),
                     new Claim("UserName", accountProfile.UserName),
                     new Claim("Email", accountProfile.Email),
                     new Claim("FullName", accountProfile.FullName),
-                    new Claim("Role", accountProfile.Role.ToString()),
+                    // new Claim("Role", accountProfile.Role.ToString()),
+                    new Claim(ClaimTypes.Role, accountProfile.Role.ToString()),
                     new Claim("Gender", accountProfile.Gender.ToString()),
                     new Claim("LastLoggedIn", accountProfile.LastLoggedIn.ToString()),
                     new Claim("RefreshToken", accountProfile.RefreshToken ?? ""),
@@ -57,7 +58,8 @@ namespace Tokens
                 Subject = new ClaimsIdentity(
                 [
                     new Claim(ClaimTypes.Name, accountProfile.UserName),
-                    new Claim("Role", accountProfile.Role.ToString())
+                    // new Claim("Role", accountProfile.Role.ToString())
+                    new Claim(ClaimTypes.Role, accountProfile.Role.ToString())
                 ]),
                 Expires = expirationDate,
                 Issuer = configuration["Jwt:Issuer"],

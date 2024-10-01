@@ -4,8 +4,9 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
-using Models;
+using biddingServer.Models;
 using SignalR.Hubs;
+using biddingServer.services.product;
 
 using var loggerFactory = LoggerFactory.Create(b => b.SetMinimumLevel(LogLevel.Information).AddConsole());
 
@@ -15,7 +16,7 @@ builder.Services.AddSignalR();
 
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
         options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"))
-        // .EnableSensitiveDataLogging() 
+    // .EnableSensitiveDataLogging()
     );
 
 
@@ -24,18 +25,21 @@ builder.Services.AddControllers(); // Register the controllers
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-builder.Services.AddCors(options => {
-    // Configure CORS 
+builder.Services.AddCors(options =>
+{
+    // Configure CORS
     options.AddPolicy("AllowReactApp",
-        policy => {
-            policy.WithOrigins("http://localhost:5173") // Port where your React app is running                            
+        policy =>
+        {
+            policy.WithOrigins("http://localhost:5173") // Port where your React app is running
                   .AllowAnyHeader()
                   .AllowAnyMethod()
                   .AllowCredentials(); // If you're using cookies or other credentials
         });
 });
 
-builder.Services.AddAuthentication(options => {
+builder.Services.AddAuthentication(options =>
+{
     // Configure Authentication and Authorization
     options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
     options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
@@ -48,7 +52,7 @@ builder.Services.AddAuthentication(options => {
             ValidIssuer = builder.Configuration["Jwt:Issuer"] ?? throw new InvalidOperationException("Jwt Issuer not configured"),
             ValidAudience = builder.Configuration["Jwt:Audience"] ?? throw new InvalidOperationException("Jwt Audience not configured"),
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"] ?? throw new InvalidOperationException("Jwt key not configured"))),
-            ClockSkew = new TimeSpan(0,0,5),
+            ClockSkew = new TimeSpan(0, 0, 5),
             ValidateIssuerSigningKey = true,
             ValidateIssuer = true,
             ValidateAudience = true,
@@ -62,20 +66,23 @@ builder.Services.AddAuthentication(options => {
                 var token = ctx.Request.Cookies["access_token"];
                 if (!string.IsNullOrEmpty(token))
                 {
-                    ctx.Token = token;                
-                }                
+                    ctx.Token = token;
+                }
                 return Task.CompletedTask;
             },
-            OnChallenge = ctx => { return Task.CompletedTask; }, 
-            OnTokenValidated = ctx => { return Task.CompletedTask; } 
+            OnChallenge = ctx => { return Task.CompletedTask; },
+            OnTokenValidated = ctx => { return Task.CompletedTask; }
         };
     });
 
 // Add Authorization
 builder.Services.AddAuthorization();
 
-// Register PasswordHasher
+// Register Services
 builder.Services.AddScoped<IPasswordHasher<AccountModel>, PasswordHasher<AccountModel>>();
+builder.Services.AddScoped<IProductService, ProductService>();
+builder.Services.AddScoped<IProductCategoryService, ProductCategoryService>();
+builder.Services.AddScoped<IProductImagesService, ProductImagesService>();
 
 var app = builder.Build();
 
