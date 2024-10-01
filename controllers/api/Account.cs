@@ -6,14 +6,17 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
-using Models;
+using biddingServer.Models;
 using Tokens;
+using System.Security.Claims;
 
 
-namespace Controllers {
+namespace biddingServer.Controllers.api
+{
     [ApiController]
     [Route("api/[controller]")]
-    public class AccountController : ControllerBase {
+    public class AccountController : ControllerBase
+    {
         private readonly IConfiguration _configuration;
         private readonly ApplicationDbContext _context;
         private readonly IPasswordHasher<AccountModel> _passwordHasher;
@@ -22,27 +25,27 @@ namespace Controllers {
 
         public AccountController(ApplicationDbContext context, IPasswordHasher<AccountModel> passwordHasher, IConfiguration configuration)
         {
-            _configuration = configuration; 
+            _configuration = configuration;
             _context = context;
             _passwordHasher = passwordHasher;
             _accessTimeoutMinutes = Convert.ToInt32(_configuration["Token:AccessTimeoutMinutes"] ?? throw new InvalidOperationException("Token access timeout not configured"));
             _refreshTimeoutMinutes = Convert.ToInt32(_configuration["Token:RefreshTimeoutMinutes"] ?? throw new InvalidOperationException("Token refresh timeout not configured"));
-        }       
-        
+        }
+
         [HttpGet("logout")]
         [Authorize]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
         public async Task<IActionResult> Logout()
-        {                    
+        {
 
             var emailIdentity = HttpContext.User.Identity?.Name;
             if (emailIdentity is null)
                 return Unauthorized();
 
             var user = await _context.Accounts.FirstOrDefaultAsync(x => x.Email == emailIdentity);
-             if (user is null)
+            if (user is null)
                 return Unauthorized();
 
             user.RefreshToken = null;
@@ -52,7 +55,8 @@ namespace Controllers {
             if (token == null)
                 return BadRequest("Token is required.");
 
-            Response.Cookies.Append("access_token", token, new CookieOptions{
+            Response.Cookies.Append("access_token", token, new CookieOptions
+            {
                 HttpOnly = true,
                 Secure = false, // Only send cookie over HTTPS
                 SameSite = SameSiteMode.Lax, // Adjust based on your needs
@@ -61,7 +65,8 @@ namespace Controllers {
                 Path = "/"
             });
 
-            Response.Cookies.Append("signalr_token", token, new CookieOptions{
+            Response.Cookies.Append("signalr_token", token, new CookieOptions
+            {
                 HttpOnly = false,
                 Secure = false, // Only send cookie over HTTPS
                 SameSite = SameSiteMode.Lax, // Adjust based on your needs
@@ -84,9 +89,10 @@ namespace Controllers {
             if (loginDto.Email == "" || loginDto.Password == "")
                 return BadRequest("Invalid Email or Password");
 
-            try {
+            try
+            {
 
-            
+
                 // Find the user by email
                 var user = await _context.Accounts.FirstOrDefaultAsync(u => u.Email == loginDto.Email);
                 if (user == null)
@@ -108,7 +114,7 @@ namespace Controllers {
                 user.RefreshTokenExpiry = refreshTokenExpiry;
                 user.LastLoggedIn = DateTime.UtcNow;
                 await _context.SaveChangesAsync();
-                
+
                 // Access Token
                 DateTime expirationDate = DateTime.UtcNow.AddMinutes(_accessTimeoutMinutes);
                 var token = AccountService.GenerateJwtToken(_configuration, user, expirationDate);
@@ -134,7 +140,8 @@ namespace Controllers {
                 Response.Cookies.Append("signalr_token", signalrToken, signalrCookieOptions);
 
                 // return Ok(new { Token = token, Profile = user });
-                return Ok(new LoginResponseDto {
+                return Ok(new LoginResponseDto
+                {
                     UserName = user.UserName,
                     FullName = user.FullName,
                     Email = user.Email,
@@ -143,13 +150,15 @@ namespace Controllers {
                     LastLoggedIn = user.LastLoggedIn
                 });
 
-            }catch{
+            }
+            catch
+            {
                 return BadRequest("Connection error: Database connection closed.");
             }
-            
+
         }
-        
-        
+
+
         [HttpGet("validate-token")]
         [Authorize] // Ensure that only authenticated requests can access this endpoint
         // [ProducesResponseType(StatusCodes.Status200OK)]
@@ -177,13 +186,18 @@ namespace Controllers {
                     ValidateIssuer = true,
                     ValidateAudience = true
                 }, out SecurityToken validatedToken);
-                
+
                 var jwtToken = (JwtSecurityToken)validatedToken;
                 var claims = jwtToken.Claims.ToList();
-                
-                var Id = int.TryParse(claims.FirstOrDefault(x => x.Type == "Id")?.Value, out var id) ? id : 0;
-                var accountProfile = _context.Accounts.FirstOrDefault(x => x.Id == id);                
-                if (accountProfile == null) return Unauthorized(new { message = "Invalid Token or expired."});
+
+                var nameIdClaim = claims.FirstOrDefault(x => x.Type == "nameid");
+                if (nameIdClaim == null || !int.TryParse(nameIdClaim.Value, out var id))
+                {
+                    return Unauthorized(new { message = "Invalid token: User ID claim is missing or invalid." });
+                }
+
+                var accountProfile = _context.Accounts.FirstOrDefault(x => x.Id == id);
+                if (accountProfile == null) return Unauthorized(new { message = "Invalid Token or expired." });
 
                 var refreshToken = claims.FirstOrDefault(x => x.Type == "RefreshToken") ?? null;
                 if (refreshToken == null) return Unauthorized(new { message = "Refresh Token expired." });
@@ -213,15 +227,21 @@ namespace Controllers {
                     Path = "/"
                 };
                 Response.Cookies.Append("signalr_token", signalrToken, signalrCookieOptions);
-                
-                return Ok(new {status = "token validated", message = "Access token revalidated and renew.", accountProfile = new {
-                    UserName = accountProfile.UserName,
-                    FullName = accountProfile.FullName,
-                    Email = accountProfile.Email,
-                    Role = (int)accountProfile.Role,
-                    Gender = (int)accountProfile.Gender,
-                    LastLoggedIn = accountProfile.LastLoggedIn
-                } });
+
+                return Ok(new
+                {
+                    status = "token validated",
+                    message = "Access token revalidated and renew.",
+                    accountProfile = new
+                    {
+                        UserName = accountProfile.UserName,
+                        FullName = accountProfile.FullName,
+                        Email = accountProfile.Email,
+                        Role = (int)accountProfile.Role,
+                        Gender = (int)accountProfile.Gender,
+                        LastLoggedIn = accountProfile.LastLoggedIn
+                    }
+                });
             }
             catch (Exception ex)
             {
@@ -230,7 +250,8 @@ namespace Controllers {
         }
 
         [HttpPost("register")]
-        public async Task<IActionResult> RegisterAccount([FromBody] RegisterDto registerDto){       
+        public async Task<IActionResult> RegisterAccount([FromBody] RegisterDto registerDto)
+        {
             // Server-side validation
             if (!ModelState.IsValid)
             {
@@ -262,10 +283,10 @@ namespace Controllers {
             await _context.SaveChangesAsync();
 
             return Ok("Registration successful.");
-        
+
         }
-       
+
     }
 
-    
+
 }

@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -10,9 +11,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace biddingServer.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20240926081455_InitialMigration")]
+    partial class InitialMigration
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -207,6 +210,9 @@ namespace biddingServer.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
+                    b.Property<int?>("CategoryId")
+                        .HasColumnType("int");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
@@ -246,7 +252,7 @@ namespace biddingServer.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("ProductCategoryID");
+                    b.HasIndex("CategoryId");
 
                     b.HasIndex("SellerID");
 
@@ -326,11 +332,9 @@ namespace biddingServer.Migrations
 
             modelBuilder.Entity("biddingServer.Models.ProductModel", b =>
                 {
-                    b.HasOne("biddingServer.Models.ProductCategoryModel", "ProductCategory")
+                    b.HasOne("biddingServer.Models.ProductCategoryModel", "Category")
                         .WithMany()
-                        .HasForeignKey("ProductCategoryID")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .HasForeignKey("CategoryId");
 
                     b.HasOne("biddingServer.Models.AccountModel", "Seller")
                         .WithMany()
@@ -338,7 +342,7 @@ namespace biddingServer.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("ProductCategory");
+                    b.Navigation("Category");
 
                     b.Navigation("Seller");
                 });

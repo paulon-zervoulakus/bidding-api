@@ -1,12 +1,12 @@
 using System.ComponentModel.DataAnnotations;
-using Models;
+using biddingServer.Models;
 
 namespace DTO.Account
 {
     public class RegisterDto
     {
         [Required]
-        [EmailAddress(ErrorMessage ="Please enter a valid email address.")]
+        [EmailAddress(ErrorMessage = "Please enter a valid email address.")]
         public string Email { get; set; }
 
         [Required]
@@ -29,8 +29,8 @@ namespace DTO.Account
     public class LoginRequestDto
     {
         [Required]
-        [EmailAddress(ErrorMessage ="Please enter a valid email address.")]
-        public string Email { get; set; } = ""; // username 
+        [EmailAddress(ErrorMessage = "Please enter a valid email address.")]
+        public string Email { get; set; } = ""; // username
         [Required]
         public string Password { get; set; } = "";
     }
@@ -41,7 +41,7 @@ namespace DTO.Account
         public string FullName { get; set; }
         public string Email { get; set; }
         public int Role { get; set; } = 0;
-        public int Gender { get; set; } = 0;    
-        public DateTime LastLoggedIn { get; set; }        
+        public int Gender { get; set; } = 0;
+        public DateTime LastLoggedIn { get; set; }
     }
 }
