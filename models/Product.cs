@@ -28,19 +28,12 @@ namespace biddingServer.Models
         [Required]
         [ForeignKey("ProductCategoryModel")]
         public int ProductCategoryID { get; set; }
-        public ProductCategoryModel? Category { get; set; }
+        public ProductCategoryModel? ProductCategory { get; set; }
         [Required]
         public DateTime CreatedAt { get; set; }
         [Required]
         public DateTime UpdatedAt { get; set; }
 
-        // [StringLength(255)]
-        // public string Location { get; set; }
-
-        // public string ShippingDetails { get; set; }
-
-        // [StringLength(255)]
-        // public string PaymentMethods { get; set; }
     }
     public enum ProductConditionEnum
     {

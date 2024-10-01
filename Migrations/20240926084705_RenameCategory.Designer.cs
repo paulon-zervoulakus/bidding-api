@@ -11,8 +11,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace biddingServer.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20240921031111_Create new table for product, category and bidding transaction")]
-    partial class Createnewtableforproductcategoryandbiddingtransaction
+    [Migration("20240926084705_RenameCategory")]
+    partial class RenameCategory
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -210,14 +210,12 @@ namespace biddingServer.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
-                    b.Property<int>("CategoryId")
-                        .HasColumnType("int");
-
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
                     b.Property<string>("Description")
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(1024)
+                        .HasColumnType("nvarchar(1024)");
 
                     b.Property<bool>("IsSerializable")
                         .HasColumnType("bit");
@@ -251,7 +249,7 @@ namespace biddingServer.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("CategoryId");
+                    b.HasIndex("ProductCategoryID");
 
                     b.HasIndex("SellerID");
 
@@ -331,9 +329,9 @@ namespace biddingServer.Migrations
 
             modelBuilder.Entity("biddingServer.Models.ProductModel", b =>
                 {
-                    b.HasOne("biddingServer.Models.ProductCategoryModel", "Category")
+                    b.HasOne("biddingServer.Models.ProductCategoryModel", "ProductCategory")
                         .WithMany()
-                        .HasForeignKey("CategoryId")
+                        .HasForeignKey("ProductCategoryID")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
@@ -343,7 +341,7 @@ namespace biddingServer.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("Category");
+                    b.Navigation("ProductCategory");
 
                     b.Navigation("Seller");
                 });

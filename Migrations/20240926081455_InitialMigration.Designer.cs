@@ -11,8 +11,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace biddingServer.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20240922073835_Change_string_length_of_description_of_product")]
-    partial class Change_string_length_of_description_of_product
+    [Migration("20240926081455_InitialMigration")]
+    partial class InitialMigration
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -210,7 +210,7 @@ namespace biddingServer.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
-                    b.Property<int>("CategoryId")
+                    b.Property<int?>("CategoryId")
                         .HasColumnType("int");
 
                     b.Property<DateTime>("CreatedAt")
@@ -334,9 +334,7 @@ namespace biddingServer.Migrations
                 {
                     b.HasOne("biddingServer.Models.ProductCategoryModel", "Category")
                         .WithMany()
-                        .HasForeignKey("CategoryId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .HasForeignKey("CategoryId");
 
                     b.HasOne("biddingServer.Models.AccountModel", "Seller")
                         .WithMany()

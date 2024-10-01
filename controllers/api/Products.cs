@@ -1,9 +1,10 @@
 using System.Security.Claims;
 using biddingServer.Models;
-using DTO.Product;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using biddingServer.services.product;
+using RequestDTO = DTO.Request.Product;
+using ResponseDTO = DTO.Response.Product;
 
 namespace biddingServer.Controllers.api
 {
@@ -37,16 +38,16 @@ namespace biddingServer.Controllers.api
 
         [HttpGet("products")]
         [Authorize(Roles = $"{nameof(RoleEnumerated.Administrator)}, {nameof(RoleEnumerated.Seller)}")]
-        public async Task<ActionResult<List<ProductModel>>> Products()
+        public async Task<ActionResult<List<ResponseDTO.Product>>> Products()
         {
             // TODO: in the future define a limit of list result
-            List<ProductModel> products = await _productService.GetAll();
+            List<ResponseDTO.Product> products = await _productService.GetAll();
             return Ok(new { products });
         }
 
         [HttpPost("product-update")]
         [Authorize(Roles = $"{nameof(RoleEnumerated.Administrator)}, {nameof(RoleEnumerated.Seller)}")]
-        public async Task<ActionResult<ProductModel>> ProductUpdate([FromBody] ProductDTO product)
+        public async Task<ActionResult<ProductModel>> ProductUpdate([FromBody] RequestDTO.Product product)
         {
             if (!ModelState.IsValid) return BadRequest(ModelState);
 
@@ -103,7 +104,7 @@ namespace biddingServer.Controllers.api
 
         [HttpPost("product-addnew")]
         [Authorize(Roles = $"{nameof(RoleEnumerated.Administrator)}, {nameof(RoleEnumerated.Seller)}")]
-        public async Task<ActionResult<ProductModel>> ProductAddNew([FromBody] ProductDTO product)
+        public async Task<ActionResult<ProductModel>> ProductAddNew([FromBody] RequestDTO.Product product)
         {
             if (!ModelState.IsValid) return BadRequest(ModelState);
 

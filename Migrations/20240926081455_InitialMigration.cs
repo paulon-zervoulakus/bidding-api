@@ -6,11 +6,36 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace biddingServer.Migrations
 {
     /// <inheritdoc />
-    public partial class Createnewtableforproductcategoryandbiddingtransaction : Migration
+    public partial class InitialMigration : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.CreateTable(
+                name: "Accounts",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    UserName = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    Email = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    Password = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    FullName = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    DateOfBirth = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    CreatedDate = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    UpdatedDate = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    LastLoggedIn = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    IsLoggedIn = table.Column<bool>(type: "bit", nullable: false),
+                    Role = table.Column<int>(type: "int", nullable: false),
+                    Gender = table.Column<int>(type: "int", nullable: false),
+                    RefreshToken = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    RefreshTokenExpiry = table.Column<DateTime>(type: "datetime2", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Accounts", x => x.Id);
+                });
+
             migrationBuilder.CreateTable(
                 name: "ProductCategories",
                 columns: table => new
@@ -37,7 +62,7 @@ namespace biddingServer.Migrations
                     Id = table.Column<int>(type: "int", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
                     Title = table.Column<string>(type: "nvarchar(255)", maxLength: 255, nullable: false),
-                    Description = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    Description = table.Column<string>(type: "nvarchar(1024)", maxLength: 1024, nullable: true),
                     Price = table.Column<decimal>(type: "decimal(10,2)", nullable: false),
                     Quantity = table.Column<int>(type: "int", nullable: false),
                     SKU = table.Column<string>(type: "nvarchar(32)", maxLength: 32, nullable: true),
@@ -45,7 +70,7 @@ namespace biddingServer.Migrations
                     IsSerializable = table.Column<bool>(type: "bit", nullable: false),
                     ProductCondition = table.Column<int>(type: "int", nullable: false),
                     ProductCategoryID = table.Column<int>(type: "int", nullable: false),
-                    CategoryId = table.Column<int>(type: "int", nullable: false),
+                    CategoryId = table.Column<int>(type: "int", nullable: true),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: false)
                 },
@@ -62,8 +87,7 @@ namespace biddingServer.Migrations
                         name: "FK_Products_ProductCategories_CategoryId",
                         column: x => x.CategoryId,
                         principalTable: "ProductCategories",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
+                        principalColumn: "Id");
                 });
 
             migrationBuilder.CreateTable(
@@ -220,6 +244,9 @@ namespace biddingServer.Migrations
 
             migrationBuilder.DropTable(
                 name: "Products");
+
+            migrationBuilder.DropTable(
+                name: "Accounts");
 
             migrationBuilder.DropTable(
                 name: "ProductCategories");

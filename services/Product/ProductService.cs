@@ -1,6 +1,9 @@
 using System.Runtime.CompilerServices;
+using Azure.Identity;
 using biddingServer.Models;
+using ResponseDTO = DTO.Response.Product;
 using Microsoft.EntityFrameworkCore;
+using Azure;
 
 namespace biddingServer.services.product
 {
@@ -9,7 +12,7 @@ namespace biddingServer.services.product
         Task<ProductModel?> GetById(int id);
         Task<ProductModel?> GetBySKU(string? sku);
         Task Update(ProductModel product);
-        Task<List<ProductModel>> GetAll();
+        Task<List<ResponseDTO.Product>> GetAll();
         Task<ProductModel> Add(ProductModel product);
     }
 
@@ -38,9 +41,37 @@ namespace biddingServer.services.product
             await _context.SaveChangesAsync();
         }
 
-        public async Task<List<ProductModel>> GetAll()
+        public async Task<List<ResponseDTO.Product>> GetAll()
         {
-            return await _context.Products.ToListAsync();
+            var products = await _context.Products
+                .Include(c => c.ProductCategory) // Include the immediate product category
+                .Include(s => s.Seller)
+                .Select(p => new ResponseDTO.Product
+                {
+                    Id = p.Id,
+                    Title = p.Title,
+                    Description = p.Description,
+                    Price = p.Price,
+                    Quantity = p.Quantity,
+                    SKU = p.SKU,
+                    IsSerializable = p.IsSerializable,
+                    ProductCondition = p.ProductCondition,
+                    Seller = new ResponseDTO.Seller
+                    {
+                        Id = p.Seller.Id,
+                        UserName = p.Seller.UserName,
+                        Email = p.Seller.Email
+                    },
+                    ProductCategory = new ResponseDTO.ProductCategory
+                    {
+                        Id = p.ProductCategory.Id,
+                        CategoryName = p.ProductCategory.CategoryName
+                    }
+
+                })
+                .ToListAsync();
+
+            return products;
         }
         // Method to add a new product
         public async Task<ProductModel> Add(ProductModel newProduct)

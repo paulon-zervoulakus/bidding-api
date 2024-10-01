@@ -207,9 +207,6 @@ namespace biddingServer.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
-                    b.Property<int?>("CategoryId")
-                        .HasColumnType("int");
-
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
@@ -249,7 +246,7 @@ namespace biddingServer.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("CategoryId");
+                    b.HasIndex("ProductCategoryID");
 
                     b.HasIndex("SellerID");
 
@@ -329,9 +326,11 @@ namespace biddingServer.Migrations
 
             modelBuilder.Entity("biddingServer.Models.ProductModel", b =>
                 {
-                    b.HasOne("biddingServer.Models.ProductCategoryModel", "Category")
+                    b.HasOne("biddingServer.Models.ProductCategoryModel", "ProductCategory")
                         .WithMany()
-                        .HasForeignKey("CategoryId");
+                        .HasForeignKey("ProductCategoryID")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
 
                     b.HasOne("biddingServer.Models.AccountModel", "Seller")
                         .WithMany()
@@ -339,7 +338,7 @@ namespace biddingServer.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("Category");
+                    b.Navigation("ProductCategory");
 
                     b.Navigation("Seller");
                 });

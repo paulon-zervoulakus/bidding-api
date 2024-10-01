@@ -1,8 +1,8 @@
 using System.ComponentModel.DataAnnotations;
 using biddingServer.Models;
-namespace DTO.Product
+namespace DTO.Request.Product
 {
-    public class ProductDTO
+    public class Product
     {
         public int? Id { get; set; }
 
@@ -30,6 +30,7 @@ namespace DTO.Product
 
         [Required]
         public int ProductCategoryID { get; set; }
+
 
     }
 }
