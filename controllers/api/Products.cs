@@ -37,17 +37,18 @@ namespace biddingServer.Controllers.api
         }
 
         [HttpGet("products")]
-        [Authorize(Roles = $"{nameof(RoleEnumerated.Administrator)}, {nameof(RoleEnumerated.Seller)}")]
-        public async Task<ActionResult<List<ResponseDTO.Product>>> Products()
+        // [Authorize(Roles = $"{nameof(RoleEnumerated.Administrator)}, {nameof(RoleEnumerated.Seller)}")]
+        [Authorize]
+        public async Task<ActionResult<List<ResponseDTO.ProductResponseDTO>>> Products()
         {
             // TODO: in the future define a limit of list result
-            List<ResponseDTO.Product> products = await _productService.GetAll();
+            List<ResponseDTO.ProductResponseDTO> products = await _productService.GetAll();
             return Ok(new { products });
         }
 
         [HttpPost("product-update")]
         [Authorize(Roles = $"{nameof(RoleEnumerated.Administrator)}, {nameof(RoleEnumerated.Seller)}")]
-        public async Task<ActionResult<ProductModel>> ProductUpdate([FromBody] RequestDTO.Product product)
+        public async Task<ActionResult<ProductModel>> ProductUpdate([FromBody] RequestDTO.ProductRequestDTO product)
         {
             if (!ModelState.IsValid) return BadRequest(ModelState);
 
@@ -104,7 +105,7 @@ namespace biddingServer.Controllers.api
 
         [HttpPost("product-addnew")]
         [Authorize(Roles = $"{nameof(RoleEnumerated.Administrator)}, {nameof(RoleEnumerated.Seller)}")]
-        public async Task<ActionResult<ProductModel>> ProductAddNew([FromBody] RequestDTO.Product product)
+        public async Task<ActionResult<ProductModel>> ProductAddNew([FromBody] RequestDTO.ProductRequestDTO product)
         {
             if (!ModelState.IsValid) return BadRequest(ModelState);
 

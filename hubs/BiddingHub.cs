@@ -15,9 +15,10 @@ namespace SignalR.Hubs
     {
         private readonly IConfiguration _configuration;
         private static ConcurrentDictionary<string, ConnectedUsersDTO> _connections = new();
-        public Bidding(IConfiguration configuration)
+        public Bidding(IConfiguration configuration, ConcurrentDictionary<string, ConnectedUsersDTO> connections)
         {
             _configuration = configuration;
+            _connections = connections;
         }
         public override async Task OnConnectedAsync()
         {
@@ -29,7 +30,7 @@ namespace SignalR.Hubs
             };
             if (connectedUser.Email != null)
             {
-                Console.WriteLine("BiddingHub : OnConnectedAsync");
+
                 _connections[Context.ConnectionId] = connectedUser;
 
                 // var activeEmailList = _connections.Values.Distinct().ToList();
@@ -48,16 +49,19 @@ namespace SignalR.Hubs
         {
             var disconnectedId = Context.ConnectionId;
             var disconnectedUser = _connections[disconnectedId];
+
             if (_connections.TryRemove(Context.ConnectionId, out _))
             {
                 // update online users
                 Console.WriteLine("BiddingHub : OnDisconnectedAsync : " + disconnectedUser.Fullname);
 
                 // var activeEmailList = _connections.Values.Distinct().ToList();
+
                 var activeUserList = _connections.Values
                     .GroupBy(user => user.Email)
                     .Select(group => group.First()) // Take the first user for each email
                     .ToList();
+
                 await Clients.All.SendAsync("UpdateOnlineUsersList", activeUserList);
             }
             await base.OnDisconnectedAsync(exception);
@@ -129,6 +133,20 @@ namespace SignalR.Hubs
                 // send denial message and deactivate the user who send the message with invalide token
                 return Clients.All.SendAsync("ReceiveMessage", "System", "Invalid token");
             }
+        }
+        public List<ConnectedUsersDTO> GetOnlineUserList(string token)
+        {
+            if (ValidateSignalRToken(token))
+            {
+                var activeUserList = _connections.Values
+                    .GroupBy(user => user.Email)
+                    .Select(group => group.First()) // Take the first user for each email
+                    .ToList();
+
+                // await Clients.All.SendAsync("UpdateOnlineUsersList", activeUserList);
+                return activeUserList;
+            }
+            return [];
         }
     }
 }

@@ -9,7 +9,10 @@ using Microsoft.IdentityModel.Tokens;
 using biddingServer.Models;
 using Tokens;
 using System.Security.Claims;
-
+using Microsoft.AspNetCore.SignalR;
+using SignalR.Hubs;
+using System.Collections.Concurrent;
+using biddingServer.dto.Hubs;
 
 namespace biddingServer.Controllers.api
 {
@@ -17,19 +20,29 @@ namespace biddingServer.Controllers.api
     [Route("api/[controller]")]
     public class AccountController : ControllerBase
     {
+        private readonly IHubContext<Bidding> _hubContext;
+        private static ConcurrentDictionary<string, ConnectedUsersDTO> _connections = new();
+
         private readonly IConfiguration _configuration;
         private readonly ApplicationDbContext _context;
         private readonly IPasswordHasher<AccountModel> _passwordHasher;
         private readonly int _accessTimeoutMinutes;
         private readonly int _refreshTimeoutMinutes;
 
-        public AccountController(ApplicationDbContext context, IPasswordHasher<AccountModel> passwordHasher, IConfiguration configuration)
+        public AccountController(
+            ApplicationDbContext context,
+            IPasswordHasher<AccountModel> passwordHasher,
+            IConfiguration configuration,
+            IHubContext<Bidding> hubContext,
+            ConcurrentDictionary<string, ConnectedUsersDTO> connections)
         {
             _configuration = configuration;
             _context = context;
             _passwordHasher = passwordHasher;
             _accessTimeoutMinutes = Convert.ToInt32(_configuration["Token:AccessTimeoutMinutes"] ?? throw new InvalidOperationException("Token access timeout not configured"));
             _refreshTimeoutMinutes = Convert.ToInt32(_configuration["Token:RefreshTimeoutMinutes"] ?? throw new InvalidOperationException("Token refresh timeout not configured"));
+            _hubContext = hubContext;
+            _connections = connections;
         }
 
         [HttpGet("logout")]
@@ -74,6 +87,17 @@ namespace biddingServer.Controllers.api
                 Expires = DateTime.UtcNow.AddMinutes(-2),
                 Path = "/"
             });
+
+            // var connectionId = _connections.FirstOrDefault(x => x.Value.Email == emailIdentity).Key;
+
+            // if (connectionId != null) _connections.TryRemove(connectionId, out _);
+
+            // var activeUserList = _connections.Values
+            //     .GroupBy(user => user.Email)
+            //     .Select(group => group.First()) // Take the first user for each email
+            //     .ToList();
+
+            // await _hubContext.Clients.All.SendAsync("UpdateOnlineUsersList", activeUserList);
 
             return Ok(new { message = "Session ended." });
 
@@ -157,7 +181,6 @@ namespace biddingServer.Controllers.api
             }
 
         }
-
 
         [HttpGet("validate-token")]
         [Authorize] // Ensure that only authenticated requests can access this endpoint
@@ -270,7 +293,7 @@ namespace biddingServer.Controllers.api
             var account = new AccountModel
             {
                 Email = registerDto.Email,
-                UserName = registerDto.Email,
+                UserName = registerDto.Email.Split('@')[0],
                 FullName = registerDto.Email.Split('@')[0],
                 DateOfBirth = registerDto.DateOfBirth,
                 Password = _passwordHasher.HashPassword(null, registerDto.Password),
