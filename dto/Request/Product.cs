@@ -2,7 +2,7 @@ using System.ComponentModel.DataAnnotations;
 using biddingServer.Models;
 namespace DTO.Request.Product
 {
-    public class Product
+    public class ProductRequestDTO
     {
         public int? Id { get; set; }
 
