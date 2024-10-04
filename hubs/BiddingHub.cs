@@ -30,7 +30,7 @@ namespace SignalR.Hubs
             };
             if (connectedUser.Email != null)
             {
-
+                // Console.WriteLine("OnConnectedAsync: " + Context.ConnectionId);
                 _connections[Context.ConnectionId] = connectedUser;
 
                 // var activeEmailList = _connections.Values.Distinct().ToList();
