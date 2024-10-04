@@ -12,7 +12,7 @@ namespace biddingServer.services.product
         Task<ProductModel?> GetById(int id);
         Task<ProductModel?> GetBySKU(string? sku);
         Task Update(ProductModel product);
-        Task<List<ResponseDTO.Product>> GetAll();
+        Task<List<ResponseDTO.ProductResponseDTO>> GetAll();
         Task<ProductModel> Add(ProductModel product);
     }
 
@@ -41,12 +41,12 @@ namespace biddingServer.services.product
             await _context.SaveChangesAsync();
         }
 
-        public async Task<List<ResponseDTO.Product>> GetAll()
+        public async Task<List<ResponseDTO.ProductResponseDTO>> GetAll()
         {
             var products = await _context.Products
                 .Include(c => c.ProductCategory) // Include the immediate product category
                 .Include(s => s.Seller)
-                .Select(p => new ResponseDTO.Product
+                .Select(p => new ResponseDTO.ProductResponseDTO
                 {
                     Id = p.Id,
                     Title = p.Title,

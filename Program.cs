@@ -7,6 +7,8 @@ using Microsoft.IdentityModel.Tokens;
 using biddingServer.Models;
 using SignalR.Hubs;
 using biddingServer.services.product;
+using System.Collections.Concurrent;
+using biddingServer.dto.Hubs;
 
 using var loggerFactory = LoggerFactory.Create(b => b.SetMinimumLevel(LogLevel.Information).AddConsole());
 
@@ -83,6 +85,8 @@ builder.Services.AddScoped<IPasswordHasher<AccountModel>, PasswordHasher<Account
 builder.Services.AddScoped<IProductService, ProductService>();
 builder.Services.AddScoped<IProductCategoryService, ProductCategoryService>();
 builder.Services.AddScoped<IProductImagesService, ProductImagesService>();
+
+builder.Services.AddSingleton<ConcurrentDictionary<string, ConnectedUsersDTO>>();
 
 var app = builder.Build();
 
