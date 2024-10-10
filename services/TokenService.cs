@@ -5,9 +5,9 @@ using System.Text;
 using Microsoft.IdentityModel.Tokens;
 using biddingServer.Models;
 
-namespace Tokens
+namespace biddingServer.services.Tokens
 {
-    public class AccountService
+    public class AuthService
     {
         public static string GenerateRefreshToken()
         {
