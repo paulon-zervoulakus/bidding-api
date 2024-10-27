@@ -58,7 +58,7 @@ namespace biddingServer.services.Tokens
                 Subject = new ClaimsIdentity(
                 [
                     new Claim(ClaimTypes.Name, accountProfile.UserName),
-                    // new Claim("Role", accountProfile.Role.ToString())
+                    new Claim(ClaimTypes.Email, accountProfile.Email),
                     new Claim(ClaimTypes.Role, accountProfile.Role.ToString())
                 ]),
                 Expires = expirationDate,

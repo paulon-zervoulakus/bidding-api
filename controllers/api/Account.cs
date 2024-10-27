@@ -280,15 +280,18 @@ namespace biddingServer.Controllers.api
         [HttpPost("register")]
         public async Task<IActionResult> RegisterAccount([FromBody] RegisterDto registerDto)
         {
+
             // Server-side validation
             if (!ModelState.IsValid)
             {
+                Console.WriteLine("Register - Bad Request");
                 return BadRequest(ModelState);
             }
 
             // Check if email is already in use
             if (await _context.Accounts.AnyAsync(a => a.Email == registerDto.Email))
             {
+                Console.WriteLine("Register - email already exist");
                 return Conflict("Email is already in use.");
             }
 

@@ -92,7 +92,7 @@ namespace SignalR.Hubs
                     // If token is valid, proceed with other checking
 
                     // check claims name if it is registered in the _connection directory
-                    var userEmail = principal.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Name)?.Value;
+                    var userEmail = principal.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Email)?.Value;
                     if (userEmail != null && _connections.Values.Any(c => c.Email == userEmail))
                     {
                         // Token is valid and user is registered
@@ -101,6 +101,7 @@ namespace SignalR.Hubs
                     }
                     else
                     {
+                        Console.WriteLine("BiddingHub - ValidateSignalRToken :" + userEmail);
                         return false;
                     }
                 }

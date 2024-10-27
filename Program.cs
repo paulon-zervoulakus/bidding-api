@@ -11,16 +11,30 @@ using System.Collections.Concurrent;
 using biddingServer.dto.Hubs;
 using biddingServer.services.account;
 
+using System.Data.Common;
+using DotNetEnv;
+
 using var loggerFactory = LoggerFactory.Create(b => b.SetMinimumLevel(LogLevel.Information).AddConsole());
+
+Env.Load();
+
+string dbHost = Environment.GetEnvironmentVariable("DB_HOST") ?? "localhost";
+string dbName = Environment.GetEnvironmentVariable("DB_NAME") ?? "bidding";
+string dbPort = Environment.GetEnvironmentVariable("DB_PORT") ?? "1433";
+string dbUserId = Environment.GetEnvironmentVariable("DB_USERID") ?? "SA";
+string dbPassword = Environment.GetEnvironmentVariable("DB_PASSWORD") ?? "";
+string uiPort = Environment.GetEnvironmentVariable("UI_PORT") ?? "3000";
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddSignalR();
 
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
-        options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"))
-    // .EnableSensitiveDataLogging()
-    );
+{
+    string connString = $"Server={dbHost},{dbPort};Database={dbName};User Id={dbUserId};Password={dbPassword};TrustServerCertificate=True;";
+
+    options.UseSqlServer(connString);
+});
 
 
 // Add services to the container.
@@ -34,7 +48,10 @@ builder.Services.AddCors(options =>
     options.AddPolicy("AllowReactApp",
         policy =>
         {
-            policy.WithOrigins("http://localhost:5173") // Port where your React app is running
+            // NOTE : localhost is for development only, need to resolve the environment domain
+            // for cors to register the origin or request.
+            string uiString = $"http://localhost:{uiPort}";
+            policy.WithOrigins(uiString) // need to resolve the domain for the cors here
                   .AllowAnyHeader()
                   .AllowAnyMethod()
                   .AllowCredentials(); // If you're using cookies or other credentials
@@ -91,6 +108,7 @@ builder.Services.AddScoped<IAccountService, AccountService>();
 
 builder.Services.AddSingleton<ConcurrentDictionary<string, ConnectedUsersDTO>>();
 
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
@@ -101,7 +119,7 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.UseHttpsRedirection();
+// app.UseHttpsRedirection();
 
 // Apply CORS policy
 app.UseCors("AllowReactApp");
@@ -122,9 +140,26 @@ app.UseEndpoints(endpoints =>
     _ = endpoints.MapHub<Bidding>("/subastaHub");
 });
 
-// app.MapControllers();
-// app.UseMiddleware<SignalRMiddleware>();
-// app.MapHub<Bidding>("/subastaHub");
+using (var scope = app.Services.CreateScope())
+{
+    string connString = $"Server={dbHost},{dbPort};Database={dbName};User Id={dbUserId};Password={dbPassword};TrustServerCertificate=True;";
+    var optionsBuilder = new DbContextOptionsBuilder<ApplicationDbContext>();
+    optionsBuilder.UseSqlServer(connString);
+    using (var dbContext = new ApplicationDbContext(optionsBuilder.Options))
+    {
+        try
+        {
+            dbContext.Database.Migrate();
+        }
+        catch (Exception err)
+        {
+            Console.WriteLine(connString);
+            Console.WriteLine("Migration failed error: \n" + err.Message);
+            Console.WriteLine("========================\nFailure Stacktrace: \n" + err.StackTrace);
+
+        }
+    }
+}
 
 app.Run();
 
