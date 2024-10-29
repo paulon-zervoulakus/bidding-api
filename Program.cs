@@ -13,6 +13,7 @@ using biddingServer.services.account;
 
 using System.Data.Common;
 using DotNetEnv;
+using Microsoft.Extensions.ObjectPool;
 
 using var loggerFactory = LoggerFactory.Create(b => b.SetMinimumLevel(LogLevel.Information).AddConsole());
 
@@ -24,6 +25,7 @@ string dbPort = Environment.GetEnvironmentVariable("DB_PORT") ?? "1433";
 string dbUserId = Environment.GetEnvironmentVariable("DB_USERID") ?? "SA";
 string dbPassword = Environment.GetEnvironmentVariable("DB_PASSWORD") ?? "";
 string uiPort = Environment.GetEnvironmentVariable("UI_PORT") ?? "3000";
+string uiHost = Environment.GetEnvironmentVariable("UI_HOST") ?? "localhost";
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -50,7 +52,10 @@ builder.Services.AddCors(options =>
         {
             // NOTE : localhost is for development only, need to resolve the environment domain
             // for cors to register the origin or request.
-            string uiString = $"http://localhost:{uiPort}";
+            string uiString = uiPort == "80" ?
+                $"http://{uiHost}" :
+                $"http://{uiHost}:{uiPort}";
+
             policy.WithOrigins(uiString) // need to resolve the domain for the cors here
                   .AllowAnyHeader()
                   .AllowAnyMethod()
