@@ -11,23 +11,17 @@ using System.Collections.Concurrent;
 using biddingServer.dto.Hubs;
 using biddingServer.services.account;
 
-using System.Data.Common;
-using DotNetEnv;
-using Microsoft.Extensions.ObjectPool;
-
 using var loggerFactory = LoggerFactory.Create(b => b.SetMinimumLevel(LogLevel.Information).AddConsole());
 
-Env.Load();
-
-string dbHost = Environment.GetEnvironmentVariable("DB_HOST") ?? "localhost";
-string dbName = Environment.GetEnvironmentVariable("DB_NAME") ?? "bidding";
-string dbPort = Environment.GetEnvironmentVariable("DB_PORT") ?? "1433";
-string dbUserId = Environment.GetEnvironmentVariable("DB_USERID") ?? "SA";
-string dbPassword = Environment.GetEnvironmentVariable("DB_PASSWORD") ?? "";
-string uiPort = Environment.GetEnvironmentVariable("UI_PORT") ?? "3000";
-string uiHost = Environment.GetEnvironmentVariable("UI_HOST") ?? "localhost";
-
 var builder = WebApplication.CreateBuilder(args);
+
+string dbHost = builder.Configuration["DB_HOST"] ?? "localhost";
+string dbName = builder.Configuration["DB_NAME"] ?? "bidding";
+string dbPort = builder.Configuration["DB_PORT"] ?? "1433";
+string dbUserId = builder.Configuration["DB_USERID"] ?? "SA";
+string dbPassword = builder.Configuration["DB_PASSWORD"] ?? "";
+string uiPort = builder.Configuration["UI_PORT"] ?? "3000";
+string uiHost = builder.Configuration["UI_HOST"] ?? "localhost";
 
 builder.Services.AddSignalR();
 
@@ -37,7 +31,6 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 
     options.UseSqlServer(connString);
 });
-
 
 // Add services to the container.
 builder.Services.AddControllers(); // Register the controllers
@@ -108,7 +101,6 @@ builder.Services.AddScoped<IPasswordHasher<AccountModel>, PasswordHasher<Account
 builder.Services.AddScoped<IProductService, ProductService>();
 builder.Services.AddScoped<IProductCategoryService, ProductCategoryService>();
 builder.Services.AddScoped<IProductImagesService, ProductImagesService>();
-
 builder.Services.AddScoped<IAccountService, AccountService>();
 
 builder.Services.AddSingleton<ConcurrentDictionary<string, ConnectedUsersDTO>>();
