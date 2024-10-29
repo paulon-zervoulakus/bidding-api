@@ -17,6 +17,13 @@ RUN dotnet publish biddingServer.csproj -c Release -o out
 # Use a lightweight runtime image for the final stage
 FROM mcr.microsoft.com/dotnet/aspnet:8.0
 
+# Install the tzdata package to configure the timezone
+RUN apt-get update && apt-get install -y tzdata
+
+# Set the timezone to Asia/Manila (UTC+08:00)
+ENV TZ=Asia/Manila
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+
 # Set the working directory in the runtime container
 WORKDIR /app
 
