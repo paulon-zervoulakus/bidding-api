@@ -232,6 +232,7 @@ namespace biddingServer.Controllers.api
 
                 if (accountProfile.RefreshTokenExpiry < DateTime.UtcNow) return Unauthorized(new { message = "Refresh token expired.." });
 
+                var uiHost = _configuration["UI_HOST"] ?? "localhost";
                 // Renew Access Token
                 DateTime expirationDate = DateTime.UtcNow.AddMinutes(_accessTimeoutMinutes);
                 var newtoken = AuthService.GenerateJwtToken(_configuration, accountProfile, expirationDate);
@@ -241,7 +242,8 @@ namespace biddingServer.Controllers.api
                     Secure = false, // Only send cookie over HTTPS
                     SameSite = SameSiteMode.Lax, // Adjust based on your needs
                     Expires = expirationDate,
-                    Path = "/"
+                    Path = "/",
+                    Domain = $".{uiHost}"
                 };
                 Response.Cookies.Append("access_token", newtoken, cookieOptions);
 
@@ -252,7 +254,8 @@ namespace biddingServer.Controllers.api
                     SameSite = SameSiteMode.Lax, // Adjust based on your needs
                     Expires = expirationDate,
                     HttpOnly = false,
-                    Path = "/"
+                    Path = "/",
+                    Domain = $".{uiHost}"
                 };
                 Response.Cookies.Append("signalr_token", signalrToken, signalrCookieOptions);
 
