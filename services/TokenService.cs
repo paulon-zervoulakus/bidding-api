@@ -5,9 +5,9 @@ using System.Text;
 using Microsoft.IdentityModel.Tokens;
 using biddingServer.Models;
 
-namespace Tokens
+namespace biddingServer.services.Tokens
 {
-    public class AccountService
+    public class AuthService
     {
         public static string GenerateRefreshToken()
         {
@@ -58,7 +58,7 @@ namespace Tokens
                 Subject = new ClaimsIdentity(
                 [
                     new Claim(ClaimTypes.Name, accountProfile.UserName),
-                    // new Claim("Role", accountProfile.Role.ToString())
+                    new Claim(ClaimTypes.Email, accountProfile.Email),
                     new Claim(ClaimTypes.Role, accountProfile.Role.ToString())
                 ]),
                 Expires = expirationDate,
