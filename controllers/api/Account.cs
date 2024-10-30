@@ -7,12 +7,13 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using biddingServer.Models;
-using Tokens;
+using biddingServer.services.Tokens;
 using System.Security.Claims;
 using Microsoft.AspNetCore.SignalR;
 using SignalR.Hubs;
 using System.Collections.Concurrent;
 using biddingServer.dto.Hubs;
+using biddingServer.services.account;
 
 namespace biddingServer.Controllers.api
 {
@@ -29,12 +30,15 @@ namespace biddingServer.Controllers.api
         private readonly int _accessTimeoutMinutes;
         private readonly int _refreshTimeoutMinutes;
 
+        private readonly IAccountService _accountService;
         public AccountController(
             ApplicationDbContext context,
             IPasswordHasher<AccountModel> passwordHasher,
             IConfiguration configuration,
             IHubContext<Bidding> hubContext,
-            ConcurrentDictionary<string, ConnectedUsersDTO> connections)
+            ConcurrentDictionary<string, ConnectedUsersDTO> connections,
+            IAccountService accountService
+        )
         {
             _configuration = configuration;
             _context = context;
@@ -43,6 +47,7 @@ namespace biddingServer.Controllers.api
             _refreshTimeoutMinutes = Convert.ToInt32(_configuration["Token:RefreshTimeoutMinutes"] ?? throw new InvalidOperationException("Token refresh timeout not configured"));
             _hubContext = hubContext;
             _connections = connections;
+            _accountService = accountService;
         }
 
         [HttpGet("logout")]
@@ -133,7 +138,7 @@ namespace biddingServer.Controllers.api
 
                 // Refresh Token
                 DateTime refreshTokenExpiry = DateTime.UtcNow.AddMinutes(_refreshTimeoutMinutes);
-                var refreshToken = AccountService.GenerateRefreshToken();
+                var refreshToken = AuthService.GenerateRefreshToken();
                 user.RefreshToken = refreshToken;
                 user.RefreshTokenExpiry = refreshTokenExpiry;
                 user.LastLoggedIn = DateTime.UtcNow;
@@ -141,7 +146,7 @@ namespace biddingServer.Controllers.api
 
                 // Access Token
                 DateTime expirationDate = DateTime.UtcNow.AddMinutes(_accessTimeoutMinutes);
-                var token = AccountService.GenerateJwtToken(_configuration, user, expirationDate);
+                var token = AuthService.GenerateJwtToken(_configuration, user, expirationDate);
                 var cookieOptions = new CookieOptions
                 {
                     HttpOnly = true,
@@ -152,7 +157,7 @@ namespace biddingServer.Controllers.api
                 };
                 Response.Cookies.Append("access_token", token, cookieOptions);
 
-                var signalrToken = AccountService.GenerateSignalRToken(_configuration, user, expirationDate);
+                var signalrToken = AuthService.GenerateSignalRToken(_configuration, user, expirationDate);
                 var signalrCookieOptions = new CookieOptions
                 {
                     Secure = false, // Only send cookie over HTTPS
@@ -227,27 +232,30 @@ namespace biddingServer.Controllers.api
 
                 if (accountProfile.RefreshTokenExpiry < DateTime.UtcNow) return Unauthorized(new { message = "Refresh token expired.." });
 
+                var uiHost = _configuration["UI_HOST"] ?? "localhost";
                 // Renew Access Token
                 DateTime expirationDate = DateTime.UtcNow.AddMinutes(_accessTimeoutMinutes);
-                var newtoken = AccountService.GenerateJwtToken(_configuration, accountProfile, expirationDate);
+                var newtoken = AuthService.GenerateJwtToken(_configuration, accountProfile, expirationDate);
                 var cookieOptions = new CookieOptions
                 {
                     HttpOnly = true,
                     Secure = false, // Only send cookie over HTTPS
                     SameSite = SameSiteMode.Lax, // Adjust based on your needs
                     Expires = expirationDate,
-                    Path = "/"
+                    Path = "/",
+                    Domain = $".{uiHost}"
                 };
                 Response.Cookies.Append("access_token", newtoken, cookieOptions);
 
-                var signalrToken = AccountService.GenerateSignalRToken(_configuration, accountProfile, expirationDate);
+                var signalrToken = AuthService.GenerateSignalRToken(_configuration, accountProfile, expirationDate);
                 var signalrCookieOptions = new CookieOptions
                 {
                     Secure = false, // Only send cookie over HTTPS
                     SameSite = SameSiteMode.Lax, // Adjust based on your needs
                     Expires = expirationDate,
                     HttpOnly = false,
-                    Path = "/"
+                    Path = "/",
+                    Domain = $".{uiHost}"
                 };
                 Response.Cookies.Append("signalr_token", signalrToken, signalrCookieOptions);
 
@@ -275,15 +283,18 @@ namespace biddingServer.Controllers.api
         [HttpPost("register")]
         public async Task<IActionResult> RegisterAccount([FromBody] RegisterDto registerDto)
         {
+
             // Server-side validation
             if (!ModelState.IsValid)
             {
+                Console.WriteLine("Register - Bad Request");
                 return BadRequest(ModelState);
             }
 
             // Check if email is already in use
             if (await _context.Accounts.AnyAsync(a => a.Email == registerDto.Email))
             {
+                Console.WriteLine("Register - email already exist");
                 return Conflict("Email is already in use.");
             }
 
@@ -309,7 +320,14 @@ namespace biddingServer.Controllers.api
 
         }
 
+
+        [HttpGet("get-profile-basic")]
+        [Authorize]
+        public async Task<IActionResult> GetProfileBasic()
+        {
+            var user = await _accountService.GetBasicInfo(HttpContext.User.Identity?.Name ?? "");
+
+            return Ok(user);
+        }
     }
-
-
 }
