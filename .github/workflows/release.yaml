@@ -32,9 +32,11 @@ jobs:
       - name: Clone second repository
         run: |
           git clone https://github.com/paulon-zervoulakus/kubernetes-argocd-bidding.git
+          cd kubernetes-argocd-bidding
 
       - name: Update YAML file
         run: |
+          cd kubernetes-argocd-bidding
           sed -i "s|image: .*|image: paulonzervoulakus/subasta-api:${{ github.event.release.tag_name }}|g" deployment-api.yaml
 
       - name: Commit and push changes
