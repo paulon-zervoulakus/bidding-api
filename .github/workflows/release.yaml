@@ -28,3 +28,20 @@ jobs:
           file: ./Dockerfile # Path to your Dockerfile
           push: true # Set to true if you want to push the image to a registry
           tags: ${{ secrets.DOCKER_USERNAME }}/subasta-api:${{ github.ref_name }} # Use the release tag as the image tag
+
+      - name: Clone second repository
+        run: |
+          git clone https://github.com/paulon-zervoulakus/kubernetes-argocd-bidding.git
+
+      - name: Update YAML file
+        run: |
+          sed -i "s|image: .*|image: paulonzervoulakus/subasta-api:${{ github.event.release.tag_name }}|g" deployment-api.yaml
+
+      - name: Commit and push changes
+        run: |
+          cd second-repo
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add deployment-api.yaml
+          git commit -m "Update blueprint file for release ${{ github.event.release.tag_name }}"
+          git push https://x-access-token:${{ secrets.PAT_TOKEN }}@github.com/paulon-zervoulakus/kubernetes-argocd-bidding.git
