@@ -43,11 +43,11 @@ builder.Services.AddCors(options =>
     options.AddPolicy("AllowReactApp",
         policy =>
         {
-            // NOTE : localhost is for development only, need to resolve the environment domain
-            // for cors to register the origin or request.
+            // NOTE : protocol needs to be resolve
+            string protocol = uiPort == "80" ? "http" : "https";
             string uiString = uiPort == "80" ?
-                $"http://{uiHost}" :
-                $"http://{uiHost}:{uiPort}";
+                $"{protocol}://{uiHost}" :
+                $"{protocol}://{uiHost}:{uiPort}";
 
             policy.WithOrigins(uiString) // need to resolve the domain for the cors here
                   .AllowAnyHeader()
