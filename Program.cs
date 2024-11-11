@@ -44,8 +44,9 @@ builder.Services.AddCors(options =>
         policy =>
         {
             // NOTE : protocol needs to be resolve
-            string protocol = uiPort == "80" ? "http" : "https";
-            string uiString = uiPort == "80" ?
+            // string protocol = uiPort == "80" ? "http" : "https";
+            string protocol = uiPort == "443" ? "https" : "http";
+            string uiString = uiPort == "80" || uiPort == "443" ?
                 $"{protocol}://{uiHost}" :
                 $"{protocol}://{uiHost}:{uiPort}";
 
