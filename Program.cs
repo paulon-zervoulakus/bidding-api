@@ -49,6 +49,8 @@ builder.Services.AddCors(options =>
                 $"{protocol}://{uiHost}" :
                 $"{protocol}://{uiHost}:{uiPort}";
 
+            Console.WriteLine($"CORS configured for: {uiString}");
+
             policy.WithOrigins(uiString) // need to resolve the domain for the cors here
                   .AllowAnyHeader()
                   .AllowAnyMethod()
@@ -152,7 +154,7 @@ using (var scope = app.Services.CreateScope())
         {
             Console.WriteLine(connString);
             Console.WriteLine("Migration failed error: \n" + err.Message);
-            Console.WriteLine("========================\nFailure Stacktrace: \n" + err.StackTrace);
+            // Console.WriteLine("========================\nFailure Stacktrace: \n" + err.StackTrace);
 
         }
     }
