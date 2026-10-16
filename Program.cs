@@ -40,23 +40,20 @@ builder.Services.AddSwaggerGen();
 builder.Services.AddCors(options =>
 {
     // Configure CORS
-    options.AddPolicy("AllowReactApp",
-        policy =>
-        {
-            // NOTE : protocol needs to be resolve
-            // string protocol = uiPort == "80" ? "http" : "https";
-            string protocol = uiPort == "443" ? "https" : "http";
-            string uiString = uiPort == "80" || uiPort == "443" ?
-                $"{protocol}://{uiHost}" :
-                $"{protocol}://{uiHost}:{uiPort}";
+    options.AddPolicy("AllowReactApp", policy =>
+    {
+        string protocol = uiPort == "443" ? "https" : "http";
+        string uiString = uiPort == "80" || uiPort == "443" ?
+            $"{protocol}://{uiHost}" :
+            $"{protocol}://{uiHost}:{uiPort}";
 
-            Console.WriteLine($"CORS configured for: {uiString}");
+        Console.WriteLine($"CORS configured for: {uiString}");
 
-            policy.WithOrigins(uiString) // need to resolve the domain for the cors here
-                  .AllowAnyHeader()
-                  .AllowAnyMethod()
-                  .AllowCredentials(); // If you're using cookies or other credentials
-        });
+        policy.WithOrigins(uiString) // need to resolve the domain for the cors here
+                .AllowAnyHeader()
+                .AllowAnyMethod()
+                .AllowCredentials(); // If you're using cookies or other credentials
+    });
 });
 
 builder.Services.AddAuthentication(options =>

@@ -283,7 +283,6 @@ namespace biddingServer.Controllers.api
         [HttpPost("register")]
         public async Task<IActionResult> RegisterAccount([FromBody] RegisterDto registerDto)
         {
-
             // Server-side validation
             if (!ModelState.IsValid)
             {
@@ -311,15 +310,11 @@ namespace biddingServer.Controllers.api
                 CreatedDate = DateTime.UtcNow,
                 Role = isTableEmpty ? RoleEnumerated.Administrator : RoleEnumerated.Guest
             };
-
             // Save the user to the database
             _context.Accounts.Add(account);
             await _context.SaveChangesAsync();
-
             return Ok("Registration successful.");
-
         }
-
 
         [HttpGet("get-profile-basic")]
         [Authorize]
