@@ -10,6 +10,9 @@ using biddingServer.services.product;
 using System.Collections.Concurrent;
 using biddingServer.dto.Hubs;
 using biddingServer.services.account;
+using DotNetEnv;
+
+Env.Load();
 
 using var loggerFactory = LoggerFactory.Create(b => b.SetMinimumLevel(LogLevel.Information).AddConsole());
 
@@ -147,13 +150,30 @@ using (var scope = app.Services.CreateScope())
         try
         {
             dbContext.Database.Migrate();
+
+            // Seed default accounts if table is empty
+            if (!dbContext.Accounts.Any())
+            {
+                var passwordHasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher<AccountModel>>();
+
+                var admin = new AccountModel
+                {
+                    Email = "admin@bidding.local",
+                    UserName = "admin",
+                    FullName = "System Administrator",
+                    Password = passwordHasher.HashPassword(null, "Admin123"),
+                    Role = RoleEnumerated.Administrator,
+                    CreatedDate = DateTime.UtcNow,
+                    UpdatedDate = DateTime.UtcNow,
+                };
+                dbContext.Accounts.Add(admin);
+                await dbContext.SaveChangesAsync();
+            }
         }
         catch (Exception err)
         {
             Console.WriteLine(connString);
-            Console.WriteLine("Migration failed error: \n" + err.Message);
-            // Console.WriteLine("========================\nFailure Stacktrace: \n" + err.StackTrace);
-
+            Console.WriteLine("Migration/seed failed error: \n" + err.Message);
         }
     }
 }
