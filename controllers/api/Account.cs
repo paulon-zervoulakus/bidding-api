@@ -14,7 +14,8 @@ using SignalR.Hubs;
 using System.Collections.Concurrent;
 using biddingServer.dto.Hubs;
 using biddingServer.services.account;
-
+using Microsoft.EntityFrameworkCore.Internal;
+using RequestBasicInfo = DTO.Request.Account.BasicInfoDTO;
 namespace biddingServer.Controllers.api
 {
     [ApiController]
@@ -323,6 +324,35 @@ namespace biddingServer.Controllers.api
             var user = await _accountService.GetBasicInfo(HttpContext.User.Identity?.Name ?? "");
 
             return Ok(user);
+        }
+        [HttpPut("update-profile-basic")]
+        [Authorize]
+        public async Task<IActionResult> UpdateProfileBasic(
+            [FromBody] RequestBasicInfo profile)
+        {
+            var userName = HttpContext.User.Identity?.Name ?? "";
+
+            if (string.IsNullOrWhiteSpace(userName))
+            {
+                return Unauthorized();
+            }
+
+            var updatedProfile = await _accountService.UpdateBasicInfo(new RequestBasicInfo{
+                id = profile.id,
+                fullName = profile.fullName,
+                userName = profile.userName,
+                email = profile.email,
+                dateOfBirth = profile.dateOfBirth,
+                role = profile.role,
+                gender = profile.gender
+            });
+
+            if (updatedProfile == null)
+            {
+                return NotFound();
+            }
+
+            return Ok(updatedProfile);
         }
     }
 }

@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 using biddingServer.services.product;
 using RequestDTO = DTO.Request.Product;
 using ResponseDTO = DTO.Response.Product;
+using ImageMagick;
 
 namespace biddingServer.Controllers.api
 {
@@ -46,7 +47,7 @@ namespace biddingServer.Controllers.api
             return Ok(new { products });
         }
 
-        [HttpPost("product-update")]
+        [HttpPost("update")]
         [Authorize(Roles = $"{nameof(RoleEnumerated.Administrator)}, {nameof(RoleEnumerated.Seller)}")]
         public async Task<ActionResult<ProductModel>> ProductUpdate([FromBody] RequestDTO.ProductRequestDTO product)
         {
@@ -55,8 +56,8 @@ namespace biddingServer.Controllers.api
             var existingProduct = await _productService.GetBySKU(product.SKU);
             if (existingProduct != null && existingProduct.Id != product.Id) return BadRequest("A product with the same SKU already exists.");
 
-            var category = await _productCategoryService.GetById(product.ProductCategoryID);
-            if (category == null) return BadRequest("Invalid product category.");
+            // var category = await _productCategoryService.GetById(product.ProductCategoryID);
+            // if (category == null) return BadRequest("Invalid product category.");
 
             // 3. Authorization and Permissions Validation
             var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -89,31 +90,31 @@ namespace biddingServer.Controllers.api
                 productInDb.SKU = product.SKU;
                 productInDb.IsSerializable = product.IsSerializable;
                 productInDb.ProductCondition = product.ProductCondition;
-                productInDb.ProductCategoryID = product.ProductCategoryID;
+                // productInDb.ProductCategoryID = product.ProductCategoryID;
 
                 await _productService.Update(productInDb);
             }
             catch (Exception ex)
             {
                 // _logger.LogError(ex, "Error updating product");
-                return StatusCode(500, "An error occurred while updating the product.");
+                return StatusCode(500, $"An error occurred while updating the product: {ex.Message}");
             }
 
             // 5. Return the updated product
             return Ok(productInDb);
         }
 
-        [HttpPost("product-addnew")]
+        [HttpPost("create")]
         [Authorize(Roles = $"{nameof(RoleEnumerated.Administrator)}, {nameof(RoleEnumerated.Seller)}")]
         public async Task<ActionResult<ProductModel>> ProductAddNew([FromBody] RequestDTO.ProductRequestDTO product)
         {
             if (!ModelState.IsValid) return BadRequest(ModelState);
 
-            var existingProduct = await _productService.GetBySKU(product.SKU);
-            if (existingProduct != null) return BadRequest("A product with the same SKU already exists.");
+            // var existingProduct = await _productService.GetBySKU(product.SKU);
+            // if (existingProduct != null) return BadRequest("A product with the same SKU already exists.");
 
-            var category = await _productCategoryService.GetById(product.ProductCategoryID);
-            if (category == null) return BadRequest("Invalid product category.");
+            // var category = await _productCategoryService.GetById(product.ProductCategoryID);
+            // if (category == null) return BadRequest("Invalid product category.");
 
             try
             {
@@ -126,7 +127,7 @@ namespace biddingServer.Controllers.api
                     SKU = product.SKU,
                     IsSerializable = product.IsSerializable,
                     ProductCondition = product.ProductCondition,
-                    ProductCategoryID = product.ProductCategoryID,
+                    ProductCategoryID = product.ProductCategoryId,
                     SellerID = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0") // Assuming SellerID is the user's ID
                 };
 
@@ -136,7 +137,7 @@ namespace biddingServer.Controllers.api
             catch (Exception ex)
             {
                 // _logger.LogError(ex, "Error adding new product");
-                return StatusCode(500, "An error occurred while adding the new product.");
+                return StatusCode(500, $"An error occurred while adding the new product. {ex.Message}");
             }
         }
         [HttpGet("product-images")]

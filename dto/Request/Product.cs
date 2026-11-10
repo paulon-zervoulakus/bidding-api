@@ -28,9 +28,22 @@ namespace DTO.Request.Product
 
         public ProductConditionEnum ProductCondition { get; set; } = ProductConditionEnum.New; // enum
 
-        [Required]
-        public int ProductCategoryID { get; set; }
-
-
+        public int? ProductCategoryId { get; set; }
     }
+    public class ProductCategory
+    {
+        public int Id { get; set; }
+        public string CategoryName { get; set; } = "";
+    }
+    public enum ProductConditionEnum
+    {
+        New = 0,
+        OpenBox = 1,
+        Refurbished = 2,
+        UsedLikeNew = 3,
+        UsedGood = 4,
+        UsedAcceptable = 5,
+        PartsOut = 6
+    }
+
 }
