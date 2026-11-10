@@ -62,11 +62,10 @@ namespace biddingServer.services.product
                         UserName = p.Seller.UserName,
                         Email = p.Seller.Email
                     },
-                    ProductCategory = new ResponseDTO.ProductCategory
-                    {
-                        Id = p.ProductCategory.Id,
-                        CategoryName = p.ProductCategory.CategoryName
-                    }
+                    ProductCategoryId = p.ProductCategoryID,
+                    ProductCategoryName = p.ProductCategory != null
+                        ? p.ProductCategory.CategoryName
+                        : null
 
                 })
                 .ToListAsync();

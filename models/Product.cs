@@ -1,5 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using System.Text.Json.Serialization;
+using DTO.Request.Product;
 
 namespace biddingServer.Models
 {
@@ -23,27 +25,60 @@ namespace biddingServer.Models
         [Required]
         public int SellerID { get; set; }
         public AccountModel? Seller { get; set; }
-        public Boolean IsSerializable { get; set; } = false; // If true, ProductSerial count should match the quantity field
-        public ProductConditionEnum ProductCondition { get; set; } = ProductConditionEnum.New; // enum
-        [Required]
+        public Boolean IsSerializable { get; set; } = false;
+        public ProductConditionEnum ProductCondition { get; set; } = ProductConditionEnum.New;
+
         [ForeignKey("ProductCategoryModel")]
-        public int ProductCategoryID { get; set; }
+        public int? ProductCategoryID { get; set; }
         public ProductCategoryModel? ProductCategory { get; set; }
+
         [Required]
         public DateTime CreatedAt { get; set; }
         [Required]
         public DateTime UpdatedAt { get; set; }
 
     }
-    public enum ProductConditionEnum
+
+    public class ProductCategoryModel
     {
-        New = 0,                // Brand new, unused
-        OpenBox = 1,             // Opened but not used
-        Refurbished = 2,         // Restored to like-new condition
-        UsedLikeNew = 3,         // Minimal signs of wear
-        UsedGood = 4,            // Visible wear, good working condition
-        UsedAcceptable = 5,      // Significant wear, still functional
-        ForPartsOrNotWorking = 6 // Broken or defective
+        [Key]
+        public int Id { get; set; }
+        [Required]
+        [StringLength(255)]
+        public required string CategoryName { get; set; }
+        public int? ParentCategoryId { get; set; } // Points to other category id as sub category
+        [JsonIgnore]
+        public virtual ProductCategoryModel? ParentCategory { get; set; }
+        public virtual ICollection<ProductCategoryModel>? SubCategories { get; set; }
     }
 
+    public class ProductImagesModel
+    {
+        [Key]
+        public int Id { get; set; }
+        [Required]
+        [ForeignKey("ProductModel")]
+        public int ProductId { get; set; }
+        public ProductModel? Product { get; set; }
+        public Boolean IsPrimary { get; set; } = false;
+        [Required] // public uri path
+        public required string OriginalSize { get; set; }
+        public string? SquareSize { get; set; }
+        public string? ThumbnailSize { get; set; }
+        public string? IconSize { get; set; }
+
+    }
+
+    public class ProductSerialModel
+    {
+        [Key]
+        public int Id { get; set; }
+        [Required]
+        [StringLength(255)]
+        public required string SerialNumber { get; set; }
+        [Required]
+        [ForeignKey("ProductModel")]
+        public int ProductId { get; set; }
+        public required ProductModel Product { get; set; }
+    }
 }

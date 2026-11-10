@@ -10,6 +10,9 @@ using biddingServer.services.product;
 using System.Collections.Concurrent;
 using biddingServer.dto.Hubs;
 using biddingServer.services.account;
+using DotNetEnv;
+
+Env.Load();
 
 using var loggerFactory = LoggerFactory.Create(b => b.SetMinimumLevel(LogLevel.Information).AddConsole());
 
@@ -40,23 +43,20 @@ builder.Services.AddSwaggerGen();
 builder.Services.AddCors(options =>
 {
     // Configure CORS
-    options.AddPolicy("AllowReactApp",
-        policy =>
-        {
-            // NOTE : protocol needs to be resolve
-            // string protocol = uiPort == "80" ? "http" : "https";
-            string protocol = uiPort == "443" ? "https" : "http";
-            string uiString = uiPort == "80" || uiPort == "443" ?
-                $"{protocol}://{uiHost}" :
-                $"{protocol}://{uiHost}:{uiPort}";
+    options.AddPolicy("AllowReactApp", policy =>
+    {
+        string protocol = uiPort == "443" ? "https" : "http";
+        string uiString = uiPort == "80" || uiPort == "443" ?
+            $"{protocol}://{uiHost}" :
+            $"{protocol}://{uiHost}:{uiPort}";
 
-            Console.WriteLine($"CORS configured for: {uiString}");
+        Console.WriteLine($"CORS configured for: {uiString}");
 
-            policy.WithOrigins(uiString) // need to resolve the domain for the cors here
-                  .AllowAnyHeader()
-                  .AllowAnyMethod()
-                  .AllowCredentials(); // If you're using cookies or other credentials
-        });
+        policy.WithOrigins(uiString) // need to resolve the domain for the cors here
+                .AllowAnyHeader()
+                .AllowAnyMethod()
+                .AllowCredentials(); // If you're using cookies or other credentials
+    });
 });
 
 builder.Services.AddAuthentication(options =>
@@ -150,13 +150,53 @@ using (var scope = app.Services.CreateScope())
         try
         {
             dbContext.Database.Migrate();
+
+            // Seed default accounts if table is empty
+            if (!dbContext.Accounts.Any())
+            {
+                var passwordHasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher<AccountModel>>();
+
+                var admin = new AccountModel
+                {
+                    Email = "admin@bidding.local",
+                    UserName = "admin",
+                    FullName = "System Administrator",
+                    Password = passwordHasher.HashPassword(null, "Admin123"),
+                    Role = RoleEnumerated.Administrator,
+                    CreatedDate = DateTime.UtcNow,
+                    UpdatedDate = DateTime.UtcNow,
+                };
+                var user1 = new AccountModel
+                {
+                    Email = "user1@bidding.local",
+                    UserName = "user_one",
+                    FullName = "User One",
+                    Password = passwordHasher.HashPassword(null, "User123"),
+                    Role = RoleEnumerated.Member,
+                    CreatedDate = DateTime.UtcNow,
+                    UpdatedDate = DateTime.UtcNow,
+                };
+                var guest1 = new AccountModel
+                {
+                    Email = "guest1@bidding.local",
+                    UserName = "guest_one",
+                    FullName = "Guest One",
+                    Password = passwordHasher.HashPassword(null, "Guest123"),
+                    Role = RoleEnumerated.Guest,
+                    CreatedDate = DateTime.UtcNow,
+                    UpdatedDate = DateTime.UtcNow,
+                };
+
+                dbContext.Accounts.Add(admin);
+                dbContext.Accounts.Add(user1);
+                dbContext.Accounts.Add(guest1);
+                await dbContext.SaveChangesAsync();
+            }
         }
         catch (Exception err)
         {
             Console.WriteLine(connString);
-            Console.WriteLine("Migration failed error: \n" + err.Message);
-            // Console.WriteLine("========================\nFailure Stacktrace: \n" + err.StackTrace);
-
+            Console.WriteLine("Migration/seed failed error: \n" + err.Message);
         }
     }
 }
