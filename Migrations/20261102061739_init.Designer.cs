@@ -11,15 +11,15 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace biddingServer.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20241015215443_InitialCreate")]
-    partial class InitialCreate
+    [Migration("20261102061739_init")]
+    partial class init
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "8.0.8")
+                .HasAnnotation("ProductVersion", "10.0.13")
                 .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
@@ -80,7 +80,7 @@ namespace biddingServer.Migrations
                     b.ToTable("Accounts");
                 });
 
-            modelBuilder.Entity("biddingServer.Models.ProductBiddingModel", b =>
+            modelBuilder.Entity("biddingServer.Models.AuctionRoomMemberModel", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -88,46 +88,112 @@ namespace biddingServer.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
-                    b.Property<DateTime>("BidEndTime")
-                        .HasColumnType("datetime2");
-
-                    b.Property<decimal>("BidIncrement")
-                        .HasColumnType("decimal(10, 2)");
-
-                    b.Property<DateTime>("BidStartTime")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int>("BidStatus")
+                    b.Property<int>("AuctionRoomId")
                         .HasColumnType("int");
 
-                    b.Property<decimal?>("BuyNowPrice")
-                        .HasColumnType("decimal(10, 2)");
+                    b.Property<DateTime>("JoinedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AuctionRoomId");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("AuctionRoomMembers");
+                });
+
+            modelBuilder.Entity("biddingServer.Models.AuctionRoomModel", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime?>("ClosedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(1024)
+                        .HasColumnType("nvarchar(1024)");
+
+                    b.Property<string>("GroupName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int>("HostId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("HostId");
+
+                    b.ToTable("AuctionRooms");
+                });
+
+            modelBuilder.Entity("biddingServer.Models.AuctionRoomProductModel", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int?>("AuctionRoomId")
+                        .HasColumnType("int");
 
                     b.Property<int?>("CurrentHighBidderID")
                         .HasColumnType("int");
 
-                    b.Property<decimal>("CurrentPrice")
+                    b.Property<DateTime>("EndBidTime")
+                        .HasColumnType("datetime2");
+
+                    b.Property<decimal>("LastBidPrice")
                         .HasColumnType("decimal(10, 2)");
 
-                    b.Property<decimal>("InitialPrice")
+                    b.Property<decimal>("MinimumBidIncrement")
                         .HasColumnType("decimal(10, 2)");
 
-                    b.Property<int>("NumberOfBids")
+                    b.Property<int?>("NumberOfBids")
                         .HasColumnType("int");
 
                     b.Property<int>("ProductId")
                         .HasColumnType("int");
 
+                    b.Property<decimal>("StartingBidPrice")
+                        .HasColumnType("decimal(10, 2)");
+
+                    b.Property<DateTime>("StartingBidTime")
+                        .HasColumnType("datetime2");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("AuctionRoomId");
 
                     b.HasIndex("CurrentHighBidderID");
 
                     b.HasIndex("ProductId");
 
-                    b.ToTable("ProductBiddings");
+                    b.ToTable("AuctionRoomProducts");
                 });
 
-            modelBuilder.Entity("biddingServer.Models.ProductBiddingTransactionModel", b =>
+            modelBuilder.Entity("biddingServer.Models.AuctionRoomProductTransactionModel", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -135,14 +201,25 @@ namespace biddingServer.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
-                    b.Property<int>("ProductId")
+                    b.Property<int>("AuctionRoomProductId")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("Bid")
+                        .HasColumnType("decimal(10, 2)");
+
+                    b.Property<DateTime>("BidTimestamp")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("CurrentBidderID")
                         .HasColumnType("int");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("ProductId");
+                    b.HasIndex("AuctionRoomProductId");
 
-                    b.ToTable("ProductBiddingTransactions");
+                    b.HasIndex("CurrentBidderID");
+
+                    b.ToTable("AuctionRoomProductTransactions");
                 });
 
             modelBuilder.Entity("biddingServer.Models.ProductCategoryModel", b =>
@@ -192,7 +269,7 @@ namespace biddingServer.Migrations
                     b.Property<string>("SquareSize")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<string>("ThubmnailSize")
+                    b.Property<string>("ThumbnailSize")
                         .HasColumnType("nvarchar(max)");
 
                     b.HasKey("Id");
@@ -223,7 +300,7 @@ namespace biddingServer.Migrations
                     b.Property<decimal>("Price")
                         .HasColumnType("decimal(10, 2)");
 
-                    b.Property<int>("ProductCategoryID")
+                    b.Property<int?>("ProductCategoryID")
                         .HasColumnType("int");
 
                     b.Property<int>("ProductCondition")
@@ -279,8 +356,43 @@ namespace biddingServer.Migrations
                     b.ToTable("ProductSerials");
                 });
 
-            modelBuilder.Entity("biddingServer.Models.ProductBiddingModel", b =>
+            modelBuilder.Entity("biddingServer.Models.AuctionRoomMemberModel", b =>
                 {
+                    b.HasOne("biddingServer.Models.AuctionRoomModel", "AuctionRoom")
+                        .WithMany("Members")
+                        .HasForeignKey("AuctionRoomId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("biddingServer.Models.AccountModel", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.Navigation("AuctionRoom");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("biddingServer.Models.AuctionRoomModel", b =>
+                {
+                    b.HasOne("biddingServer.Models.AccountModel", "Host")
+                        .WithMany()
+                        .HasForeignKey("HostId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.Navigation("Host");
+                });
+
+            modelBuilder.Entity("biddingServer.Models.AuctionRoomProductModel", b =>
+                {
+                    b.HasOne("biddingServer.Models.AuctionRoomModel", "AuctionRoom")
+                        .WithMany("AuctionRoomProducts")
+                        .HasForeignKey("AuctionRoomId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
                     b.HasOne("biddingServer.Models.AccountModel", "CurrentHighBidder")
                         .WithMany()
                         .HasForeignKey("CurrentHighBidderID");
@@ -288,23 +400,33 @@ namespace biddingServer.Migrations
                     b.HasOne("biddingServer.Models.ProductModel", "Product")
                         .WithMany()
                         .HasForeignKey("ProductId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.NoAction)
                         .IsRequired();
+
+                    b.Navigation("AuctionRoom");
 
                     b.Navigation("CurrentHighBidder");
 
                     b.Navigation("Product");
                 });
 
-            modelBuilder.Entity("biddingServer.Models.ProductBiddingTransactionModel", b =>
+            modelBuilder.Entity("biddingServer.Models.AuctionRoomProductTransactionModel", b =>
                 {
-                    b.HasOne("biddingServer.Models.ProductModel", "Product")
+                    b.HasOne("biddingServer.Models.AuctionRoomProductModel", "AuctionRoomProduct")
                         .WithMany()
-                        .HasForeignKey("ProductId")
+                        .HasForeignKey("AuctionRoomProductId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("biddingServer.Models.AccountModel", "CurrentBidder")
+                        .WithMany()
+                        .HasForeignKey("CurrentBidderID")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("Product");
+                    b.Navigation("AuctionRoomProduct");
+
+                    b.Navigation("CurrentBidder");
                 });
 
             modelBuilder.Entity("biddingServer.Models.ProductCategoryModel", b =>
@@ -331,9 +453,7 @@ namespace biddingServer.Migrations
                 {
                     b.HasOne("biddingServer.Models.ProductCategoryModel", "ProductCategory")
                         .WithMany()
-                        .HasForeignKey("ProductCategoryID")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .HasForeignKey("ProductCategoryID");
 
                     b.HasOne("biddingServer.Models.AccountModel", "Seller")
                         .WithMany()
@@ -355,6 +475,13 @@ namespace biddingServer.Migrations
                         .IsRequired();
 
                     b.Navigation("Product");
+                });
+
+            modelBuilder.Entity("biddingServer.Models.AuctionRoomModel", b =>
+                {
+                    b.Navigation("AuctionRoomProducts");
+
+                    b.Navigation("Members");
                 });
 
             modelBuilder.Entity("biddingServer.Models.ProductCategoryModel", b =>

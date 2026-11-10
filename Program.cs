@@ -166,7 +166,30 @@ using (var scope = app.Services.CreateScope())
                     CreatedDate = DateTime.UtcNow,
                     UpdatedDate = DateTime.UtcNow,
                 };
+                var user1 = new AccountModel
+                {
+                    Email = "user1@bidding.local",
+                    UserName = "user_one",
+                    FullName = "User One",
+                    Password = passwordHasher.HashPassword(null, "User123"),
+                    Role = RoleEnumerated.Member,
+                    CreatedDate = DateTime.UtcNow,
+                    UpdatedDate = DateTime.UtcNow,
+                };
+                var guest1 = new AccountModel
+                {
+                    Email = "guest1@bidding.local",
+                    UserName = "guest_one",
+                    FullName = "Guest One",
+                    Password = passwordHasher.HashPassword(null, "Guest123"),
+                    Role = RoleEnumerated.Guest,
+                    CreatedDate = DateTime.UtcNow,
+                    UpdatedDate = DateTime.UtcNow,
+                };
+
                 dbContext.Accounts.Add(admin);
+                dbContext.Accounts.Add(user1);
+                dbContext.Accounts.Add(guest1);
                 await dbContext.SaveChangesAsync();
             }
         }

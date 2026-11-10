@@ -83,7 +83,7 @@ namespace biddingServer.services.product
                 IsPrimary = true,
                 OriginalSize = imgPath,
                 IconSize = iconPath,
-                ThubmnailSize = thumbnailPath,
+                ThumbnailSize = thumbnailPath,
                 SquareSize = squareImagePath
             });
             return imgPath;
