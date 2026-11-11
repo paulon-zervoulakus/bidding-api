@@ -14,6 +14,7 @@ namespace DTO.Response.AuctionRoom
         public int HostId { get; set; }
         public string HostUserName { get; set; } = string.Empty;
         public RoomStatusEnum Status { get; set; }
+        public RoomVisibilityEnum Visibility { get; set; } = RoomVisibilityEnum.Private;
         public DateTime CreatedAt { get; set; }
         public int MemberCount { get; set; }
         public List<AuctionRoomMemberResponseDTO>? Members { get; set; }

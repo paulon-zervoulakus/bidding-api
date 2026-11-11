@@ -38,14 +38,21 @@ namespace biddingServer.Controllers.api
         }
 
 
-        [HttpGet]
-        public async Task<ActionResult<List<AuctionRoomResponseDTO>>> GetAllRooms()
+        [HttpGet("get-public-rooms")]
+        [Authorize]
+        public async Task<ActionResult<List<AuctionRoomResponseDTO>>> GetPublicRooms()
         {
+            if (!ModelState.IsValid) return BadRequest(ModelState);
+
+            var userId = GetCurrentUserId();
+            if (userId == 0) return Unauthorized();
+
             var rooms = await _context.AuctionRooms
                 .Include(r => r.Host)
                 .Include(r => r.Members)
                 .Include(r => r.AuctionRoomProducts)
-                .Where(r => r.Status == RoomStatusEnum.Active)
+                .Where(r => r.Status == RoomStatusEnum.Active || r.Visibility == RoomVisibilityEnum.Public ||
+                    (r.Members != null && r.Members.Any(m => m.UserId == userId) ))
                 .Select(r => new AuctionRoomResponseDTO
                 {
                     Id = r.Id,
@@ -55,6 +62,7 @@ namespace biddingServer.Controllers.api
                     HostId = r.HostId,
                     HostUserName = r.Host!.UserName,
                     Status = r.Status,
+                    Visibility = r.Visibility,
                     CreatedAt = r.CreatedAt,
                     MemberCount = r.Members != null ? r.Members.Count : 0,
                     RoomProducts = r.AuctionRoomProducts == null ? null : r.AuctionRoomProducts.Select(rp => new ResponseDTO.AuctionRoomProductResponseDTO
@@ -100,11 +108,7 @@ namespace biddingServer.Controllers.api
                 .Include(r => r.Host)
                 .Include(r => r.Members)
                 .Include(r => r.AuctionRoomProducts)
-                .Where(r => r.Status == RoomStatusEnum.Active &&
-                    (r.HostId == userId ||
-                        (r.Members != null && r.Members.Any(m => m.UserId == userId))
-                    )
-                )
+                .Where(r => r.HostId == userId )
                 .Select(r => new AuctionRoomResponseDTO
                 {
                     Id = r.Id,
@@ -114,6 +118,7 @@ namespace biddingServer.Controllers.api
                     HostId = r.HostId,
                     HostUserName = r.Host!.UserName,
                     Status = r.Status,
+                    Visibility = r.Visibility,
                     CreatedAt = r.CreatedAt,
                     MemberCount = r.Members != null ? r.Members.Count : 0,
                     Members = r.Members != null ? r.Members.Select(m => new AuctionRoomMemberResponseDTO
@@ -229,6 +234,7 @@ namespace biddingServer.Controllers.api
                 existingRoom.Description = dto.Description;
                 existingRoom.HostId = userId;
                 existingRoom.Status = RoomStatusEnum.Active;
+                existingRoom.Visibility = (RoomVisibilityEnum)dto.Visibility;
                 room = existingRoom;
             }
             else
@@ -244,6 +250,7 @@ namespace biddingServer.Controllers.api
                     Description = dto.Description,
                     HostId = userId,
                     Status = RoomStatusEnum.Active,
+                    Visibility = RoomVisibilityEnum.Private,
                     CreatedAt = DateTime.UtcNow,
                     AuctionRoomProducts = dto.RoomProducts
                         .DistinctBy(p => p.ProductId)
@@ -271,6 +278,7 @@ namespace biddingServer.Controllers.api
                 HostId = room.HostId,
                 HostUserName = User.FindFirst(ClaimTypes.Name)?.Value ?? string.Empty,
                 Status = room.Status,
+                Visibility = room.Visibility,
                 CreatedAt = room.CreatedAt,
                 MemberCount = 0,
                 RoomProducts = room.AuctionRoomProducts != null ? room.AuctionRoomProducts
