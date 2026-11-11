@@ -186,10 +186,21 @@ using (var scope = app.Services.CreateScope())
                     CreatedDate = DateTime.UtcNow,
                     UpdatedDate = DateTime.UtcNow,
                 };
+                var seller1 = new AccountModel
+                {
+                    Email = "seller1@bidding.local",
+                    UserName = "seller_one",
+                    FullName = "Seller One",
+                    Password = passwordHasher.HashPassword(null, "Seller123"),
+                    Role = RoleEnumerated.Seller,
+                    CreatedDate = DateTime.UtcNow,
+                    UpdatedDate = DateTime.UtcNow,
+                };
 
                 dbContext.Accounts.Add(admin);
                 dbContext.Accounts.Add(user1);
                 dbContext.Accounts.Add(guest1);
+                dbContext.Accounts.Add(seller1);
                 await dbContext.SaveChangesAsync();
             }
         }
