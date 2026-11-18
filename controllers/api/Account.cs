@@ -172,6 +172,7 @@ namespace biddingServer.Controllers.api
                 // return Ok(new { Token = token, Profile = user });
                 return Ok(new LoginResponseDto
                 {
+                    Id = user.Id,
                     UserName = user.UserName,
                     FullName = user.FullName,
                     Email = user.Email,
@@ -266,6 +267,7 @@ namespace biddingServer.Controllers.api
                     message = "Access token revalidated and renew.",
                     accountProfile = new
                     {
+                        Id = accountProfile.Id,
                         UserName = accountProfile.UserName,
                         FullName = accountProfile.FullName,
                         Email = accountProfile.Email,

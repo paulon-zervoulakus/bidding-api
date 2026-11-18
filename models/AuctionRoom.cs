@@ -26,6 +26,7 @@ namespace biddingServer.Models
 
         [Required]
         public RoomStatusEnum Status { get; set; } = RoomStatusEnum.Active;
+        public RoomVisibilityEnum Visibility { get; set; } = RoomVisibilityEnum.Private;
 
         [Required]
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
@@ -35,7 +36,12 @@ namespace biddingServer.Models
         public ICollection<AuctionRoomProductModel>? AuctionRoomProducts { get; set; } = new List<AuctionRoomProductModel>();
 
     }
+    public enum RoomVisibilityEnum
+    {
+        Private = 0,
+        Public = 1
 
+    }
     public enum RoomStatusEnum
     {
         InActive = 0,
