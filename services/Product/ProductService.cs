@@ -14,6 +14,7 @@ namespace biddingServer.services.product
         Task Update(ProductModel product);
         Task<List<ResponseDTO.ProductResponseDTO>> GetAll();
         Task<ProductModel> Add(ProductModel product);
+        Task<List<ResponseDTO.ProductResponseDTO>> GetByUser(int userId);
     }
 
     public class ProductService : IProductService
@@ -40,7 +41,39 @@ namespace biddingServer.services.product
             _context.Products.Update(product);
             await _context.SaveChangesAsync();
         }
+        public async Task<List<ResponseDTO.ProductResponseDTO>> GetByUser(int userId)
+        {
+            var products = await _context.Products
+                .Include(c => c.ProductCategory) // Include the immediate product category
+                .Include(s => s.Seller)
+                .Where(u => u.Seller.Id == userId)
+                .Select(p => new ResponseDTO.ProductResponseDTO
+                {
+                    Id = p.Id,
+                    Title = p.Title,
+                    Description = p.Description,
+                    Price = p.Price,
+                    Quantity = p.Quantity,
+                    SKU = p.SKU,
+                    IsSerializable = p.IsSerializable,
+                    ProductCondition = p.ProductCondition,
+                    Seller = new ResponseDTO.Seller
+                    {
+                        Id = p.Seller.Id,
+                        UserName = p.Seller.UserName,
+                        Email = p.Seller.Email
+                    },
+                    ProductCategoryId = p.ProductCategoryID,
+                    ProductCategoryName = p.ProductCategory != null
+                        ? p.ProductCategory.CategoryName
+                        : null
 
+                })
+                .ToListAsync();
+
+            return products;
+
+        }
         public async Task<List<ResponseDTO.ProductResponseDTO>> GetAll()
         {
             var products = await _context.Products
