@@ -19,7 +19,11 @@ namespace DTO.Request.AuctionRoom
         public int Visibility { get; set; } = 0;
         public List<AuctionRoomProductRequestDTO> RoomProducts { get; set; } = new();
     }
-
+    public class SubscribeAuctionRoomRequestDTO
+    {
+        [Required]
+        public int RoomId { get; set;}
+    }
     public class JoinAuctionRoomRequestDTO
     {
         [Required]

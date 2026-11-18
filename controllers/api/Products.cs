@@ -26,6 +26,18 @@ namespace biddingServer.Controllers.api
             _productCategoryService = productCategoryService;
             _productImagesService = productImagesService;
         }
+
+        private int GetCurrentUserId()
+        {
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            return int.TryParse(userId, out var id) ? id : 0;
+        }
+
+        private string GetCurrentUserRole()
+        {
+            return User.FindFirst(ClaimTypes.Role)?.Value ?? string.Empty;
+        }
+
         [HttpGet("categories")]
         [Authorize(Roles = nameof(RoleEnumerated.Administrator))]
         public async Task<ActionResult<ProductCategoryModel>> Categories()
@@ -44,6 +56,16 @@ namespace biddingServer.Controllers.api
         {
             // TODO: in the future define a limit of list result
             List<ResponseDTO.ProductResponseDTO> products = await _productService.GetAll();
+            return Ok(new { products });
+        }
+        [HttpGet("manage-products")]
+        [Authorize(Roles = $"{nameof(RoleEnumerated.Administrator)}, {nameof(RoleEnumerated.Seller)}")]
+        [Authorize]
+        public async Task<ActionResult<List<ResponseDTO.ProductResponseDTO>>> ManageProducts()
+        {
+            // TODO: in the future define a limit of list result
+            var userId = GetCurrentUserId();
+            List<ResponseDTO.ProductResponseDTO> products = await _productService.GetByUser(userId);
             return Ok(new { products });
         }
 

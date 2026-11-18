@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using System.ComponentModel.DataAnnotations;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
@@ -7,16 +6,16 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.IdentityModel.Tokens;
 using biddingServer.dto.Hubs;
-using Azure.Core;
-using biddingServer.Controllers.api;
 
 namespace SignalR.Hubs
 {
     [Authorize]
     public class Bidding : Hub
     {
+        private readonly IGroupNameEncoder _encoder;
         private readonly IConfiguration _configuration;
         private static ConcurrentDictionary<string, ConnectedUsersDTO> _connections = new();
+        private static ConcurrentDictionary<string, HashSet<string>> _auctionLobbyGroup = new();
         private static ConcurrentDictionary<string, HashSet<string>> _auctionRoomGroup = new();
         public Bidding(IConfiguration configuration, ConcurrentDictionary<string, ConnectedUsersDTO> connections)
         {
@@ -35,6 +34,7 @@ namespace SignalR.Hubs
             {
                 // Console.WriteLine("OnConnectedAsync: " + Context.ConnectionId);
                 _connections[Context.ConnectionId] = connectedUser;
+                Console.WriteLine("BiddingHub : OnConnectedAsync : " + connectedUser.Fullname);
 
                 // var activeEmailList = _connections.Values.Distinct().ToList();
                 var activeUserList = _connections.Values
@@ -51,6 +51,7 @@ namespace SignalR.Hubs
         {
             var disconnectedId = Context.ConnectionId;
             _auctionRoomGroup.TryRemove(disconnectedId, out _);
+            _auctionLobbyGroup.TryRemove(disconnectedId, out _);
 
             var disconnectedUser = _connections[disconnectedId];
 
@@ -125,20 +126,21 @@ namespace SignalR.Hubs
         }
 
         // Token here is from UI hub parameter upon request
-        public Task SendMessage(string message, string token)
+        public Task SendLobbyMessage(string message, string token)
         {
             if (ValidateSignalRToken(token))
             {
                 var connectedUser = _connections[Context.ConnectionId];
                 // Use the userEmail to identify the sender
-                return Clients.All.SendAsync("ReceiveMessage", connectedUser.Fullname, message);
+                return Clients.All.SendAsync("ReceiveLobbyMessage", connectedUser.Fullname, message);
             }
             else
             {
                 // send denial message and deactivate the user who send the message with invalide token
-                return Clients.All.SendAsync("ReceiveMessage", "System", "Invalid token");
+                return Clients.All.SendAsync("ReceiveLobbyMessage", "System", "Invalid token");
             }
         }
+
         public List<ConnectedUsersDTO> GetOnlineUserList(string token)
         {
             if (ValidateSignalRToken(token))
@@ -153,7 +155,7 @@ namespace SignalR.Hubs
             return [];
         }
 
-        public async Task JoinRoom(int roomId, string groupName)
+        public async Task JoinLobbyAuctionRoom(int roomId, string groupName)
         {
             var accessToken = Context.GetHttpContext()?
                 .Request.Cookies["signalr_token"];
@@ -164,7 +166,7 @@ namespace SignalR.Hubs
                 await Groups.AddToGroupAsync(Context.ConnectionId, roomGroup);
 
                 // Track which groups this connection is in
-                _auctionRoomGroup.AddOrUpdate(
+                _auctionLobbyGroup.AddOrUpdate(
                     Context.ConnectionId,
                     new HashSet<string> { roomGroup },
                     (key, existing) => {
@@ -173,23 +175,22 @@ namespace SignalR.Hubs
                     }
                 );
 
-                await Clients.Group(roomGroup).SendAsync("UserJoinedRoom", Context.ConnectionId, roomGroup);
+                // await Clients.Group(roomGroup).SendAsync("UserJoinedLobby", Context.ConnectionId, roomGroup, _connections[Context.ConnectionId]);
             }
         }
-
-        public async Task LeaveRoom(int roomId, string groupName)
+        public async Task LeaveLobbyAuctionRoom(int roomId, string groupName)
         {
             var roomGroup = $"{roomId}-{groupName}";
             await Groups.RemoveFromGroupAsync(Context.ConnectionId, roomGroup);
 
-            if (_auctionRoomGroup.TryGetValue(Context.ConnectionId, out var groups))
+            if (_auctionLobbyGroup.TryGetValue(Context.ConnectionId, out var groups))
             {
                 groups.Remove(roomGroup);
                 if (groups.Count == 0)
-                    _auctionRoomGroup.TryRemove(Context.ConnectionId, out _);
+                    _auctionLobbyGroup.TryRemove(Context.ConnectionId, out _);
             }
 
-            await Clients.Group(roomGroup).SendAsync("UserLeftRoom", Context.ConnectionId, roomGroup);
+            // await Clients.Group(roomGroup).SendAsync("UserLeftLobby", Context.ConnectionId, roomGroup, _connections[Context.ConnectionId]);
         }
 
         public async Task SendBid(string productId, decimal amount)
@@ -217,26 +218,65 @@ namespace SignalR.Hubs
             }
         }
 
-        public async Task UpdateAuctionRoom(int roomId)
+        //**        ROOM        **//
+        public async Task JoinAuctionRoom(int roomId, string groupName)
         {
             var accessToken = Context.GetHttpContext()?
                 .Request.Cookies["signalr_token"];
 
             if (!string.IsNullOrWhiteSpace(accessToken) && ValidateSignalRToken(accessToken))
             {
-                var connectionId = Context.ConnectionId;
-                var requestingUser = _connections.TryGetValue(connectionId, out var connectedUser)
-                    ? connectedUser
-                    : null;
+                var roomGroup = $"room-{roomId}-{groupName}";
+                await Groups.AddToGroupAsync(Context.ConnectionId, roomGroup);
 
-                Console.WriteLine($"Bid from connection {connectionId}, user: {requestingUser?.Fullname}");
-
-                // Find which groups this connection belongs to and broadcast
-                if (_auctionRoomGroup.TryGetValue(connectionId, out var groups))
-                {
-                }
-
+                // Track which groups this connection is in
+                _auctionRoomGroup.AddOrUpdate(
+                    Context.ConnectionId,
+                    new HashSet<string> { roomGroup },
+                    (key, existing) => {
+                        existing.Add(roomGroup);
+                        return existing;
+                    }
+                );
+                Console.WriteLine(_connections.Values.ToList());
+                await Clients.Group(roomGroup).SendAsync("UserJoinedRoom", Context.ConnectionId, roomGroup, _connections[Context.ConnectionId]);
             }
         }
+        public async Task LeaveAuctionRoom(int roomId, string groupName)
+        {
+            var roomGroup = $"room-{roomId}-{groupName}";
+            await Groups.RemoveFromGroupAsync(Context.ConnectionId, roomGroup);
+
+            if (_auctionRoomGroup.TryGetValue(Context.ConnectionId, out var groups))
+            {
+                groups.Remove(roomGroup);
+                if (groups.Count == 0)
+                    _auctionRoomGroup.TryRemove(Context.ConnectionId, out _);
+            }
+
+            await Clients.Group(roomGroup).SendAsync("UserLeftRoom", Context.ConnectionId, roomGroup, _connections[Context.ConnectionId]);
+        }
+
+        // public async Task UpdateAuctionRoom(int roomId)
+        // {
+        //     var accessToken = Context.GetHttpContext()?
+        //         .Request.Cookies["signalr_token"];
+
+        //     if (!string.IsNullOrWhiteSpace(accessToken) && ValidateSignalRToken(accessToken))
+        //     {
+        //         var connectionId = Context.ConnectionId;
+        //         var requestingUser = _connections.TryGetValue(connectionId, out var connectedUser)
+        //             ? connectedUser
+        //             : null;
+
+        //         Console.WriteLine($"Bid from connection {connectionId}, user: {requestingUser?.Fullname}");
+
+        //         // Find which groups this connection belongs to and broadcast
+        //         if (_auctionRoomGroup.TryGetValue(connectionId, out var groups))
+        //         {
+        //         }
+
+        //     }
+        // }
     }
 }

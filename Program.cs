@@ -11,6 +11,9 @@ using System.Collections.Concurrent;
 using biddingServer.dto.Hubs;
 using biddingServer.services.account;
 using DotNetEnv;
+using SignalR.Hubs.Lobby;
+using Microsoft.AspNetCore.SignalR;
+using SignalR.Hubs.Room;
 
 Env.Load();
 
@@ -105,9 +108,14 @@ builder.Services.AddScoped<IProductService, ProductService>();
 builder.Services.AddScoped<IProductCategoryService, ProductCategoryService>();
 builder.Services.AddScoped<IProductImagesService, ProductImagesService>();
 builder.Services.AddScoped<IAccountService, AccountService>();
+builder.Services.AddScoped<IAuctionRoomService, AuctionRoomService>();
 
-builder.Services.AddSingleton<ConcurrentDictionary<string, ConnectedUsersDTO>>();
+builder.Services.AddSingleton<ConcurrentDictionary<string, RoomUsersDTO>>();
+builder.Services.AddSingleton(new ConcurrentDictionary<string, ConnectedUsersDTO>());
+builder.Services.AddSingleton<ISignalRTokenValidator, SignalRTokenValidate>();
+builder.Services.AddSingleton<IGroupNameEncoder, GroupNameEncoder>();
 
+builder.Services.AddSignalR(options => options.AddFilter<SignalRTokenFilter>());
 
 var app = builder.Build();
 
@@ -137,7 +145,8 @@ app.UseEndpoints(endpoints =>
     _ = endpoints.MapControllers(); // Ensure this is included to map the controllers
 
     // Map hub routes
-    _ = endpoints.MapHub<Bidding>("/subastaHub");
+    _ = endpoints.MapHub<AuctionLobby>("/subastaHub/lobby");
+    _ = endpoints.MapHub<AuctionRoom>("/subastaHub/room");
 });
 
 using (var scope = app.Services.CreateScope())
@@ -151,12 +160,12 @@ using (var scope = app.Services.CreateScope())
         {
             dbContext.Database.Migrate();
 
-            // Seed default accounts if table is empty
-            if (!dbContext.Accounts.Any())
-            {
-                var passwordHasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher<AccountModel>>();
+            // Seed default accounts if email is not registered yet
 
-                var admin = new AccountModel
+            var passwordHasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher<AccountModel>>();
+            var defaultAccounts = new List<AccountModel>
+            {
+                new AccountModel
                 {
                     Email = "admin@bidding.local",
                     UserName = "admin",
@@ -165,8 +174,8 @@ using (var scope = app.Services.CreateScope())
                     Role = RoleEnumerated.Administrator,
                     CreatedDate = DateTime.UtcNow,
                     UpdatedDate = DateTime.UtcNow,
-                };
-                var user1 = new AccountModel
+                },
+                new AccountModel
                 {
                     Email = "user1@bidding.local",
                     UserName = "user_one",
@@ -175,8 +184,8 @@ using (var scope = app.Services.CreateScope())
                     Role = RoleEnumerated.Member,
                     CreatedDate = DateTime.UtcNow,
                     UpdatedDate = DateTime.UtcNow,
-                };
-                var guest1 = new AccountModel
+                },
+                new AccountModel
                 {
                     Email = "guest1@bidding.local",
                     UserName = "guest_one",
@@ -185,8 +194,8 @@ using (var scope = app.Services.CreateScope())
                     Role = RoleEnumerated.Guest,
                     CreatedDate = DateTime.UtcNow,
                     UpdatedDate = DateTime.UtcNow,
-                };
-                var seller1 = new AccountModel
+                },
+                new AccountModel
                 {
                     Email = "seller1@bidding.local",
                     UserName = "seller_one",
@@ -195,14 +204,17 @@ using (var scope = app.Services.CreateScope())
                     Role = RoleEnumerated.Seller,
                     CreatedDate = DateTime.UtcNow,
                     UpdatedDate = DateTime.UtcNow,
-                };
-
-                dbContext.Accounts.Add(admin);
-                dbContext.Accounts.Add(user1);
-                dbContext.Accounts.Add(guest1);
-                dbContext.Accounts.Add(seller1);
-                await dbContext.SaveChangesAsync();
+                }
+            };
+            foreach (var account in defaultAccounts)
+            {
+                if (!await dbContext.Accounts.AnyAsync(
+                    a => a.Email == account.Email))
+                {
+                    dbContext.Accounts.Add(account);
+                }
             }
+            await dbContext.SaveChangesAsync();
         }
         catch (Exception err)
         {
