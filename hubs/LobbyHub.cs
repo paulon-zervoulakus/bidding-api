@@ -11,13 +11,13 @@ namespace SignalR.Hubs.Lobby
     [Authorize]
     public class AuctionLobby : Hub
     {
-        private readonly IGroupNameEncoder _encodeGroupName;
+        private readonly IHelperService _helperService;
         private readonly ConcurrentDictionary<string, RoomUsersDTO> _connections = new();
         private static ConcurrentDictionary<string, HashSet<string>> _auctionLobbyGroup = new();
-        public AuctionLobby(ConcurrentDictionary<string, RoomUsersDTO> connections, IGroupNameEncoder encodeGroupName)
+        public AuctionLobby(ConcurrentDictionary<string, RoomUsersDTO> connections, IHelperService helperService)
         {
             _connections = connections;
-            _encodeGroupName = encodeGroupName;
+            _helperService = helperService;
         }
 
         public override async Task OnConnectedAsync()
@@ -81,7 +81,7 @@ namespace SignalR.Hubs.Lobby
         {
             foreach(var room in rooms)
             {
-                var roomGroup = _encodeGroupName.EncodeGroupName("lobby", room.RoomId, room.GroupName);
+                var roomGroup = _helperService.EncodeGroupName("lobby", room.RoomId, room.GroupName);
                 await Groups.AddToGroupAsync(Context.ConnectionId, roomGroup);
 
                 // Track which groups this connection is in
@@ -102,7 +102,7 @@ namespace SignalR.Hubs.Lobby
         {
             foreach(var roomId in roomIds)
             {
-                var roomGroup = _encodeGroupName.EncodeGroupName("lobby", roomId, groupName);
+                var roomGroup = _helperService.EncodeGroupName("lobby", roomId, groupName);
                 await Groups.RemoveFromGroupAsync(Context.ConnectionId, roomGroup);
 
                 if (_auctionLobbyGroup.TryGetValue(Context.ConnectionId, out var groups))

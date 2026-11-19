@@ -12,12 +12,13 @@ namespace SignalR.Hubs
     [Authorize]
     public class Bidding : Hub
     {
-        private readonly IGroupNameEncoder _encoder;
         private readonly IConfiguration _configuration;
         private static ConcurrentDictionary<string, ConnectedUsersDTO> _connections = new();
         private static ConcurrentDictionary<string, HashSet<string>> _auctionLobbyGroup = new();
         private static ConcurrentDictionary<string, HashSet<string>> _auctionRoomGroup = new();
-        public Bidding(IConfiguration configuration, ConcurrentDictionary<string, ConnectedUsersDTO> connections)
+        public Bidding(
+            IConfiguration configuration,
+            ConcurrentDictionary<string, ConnectedUsersDTO> connections)
         {
             _configuration = configuration;
             _connections = connections;
