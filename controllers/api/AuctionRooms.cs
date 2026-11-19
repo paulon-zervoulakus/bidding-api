@@ -1,12 +1,10 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using SignalR.Hubs;
 using Microsoft.AspNetCore.SignalR;
 using DTO.Response.AuctionRoom;
 using DTO.Request.AuctionRoom;
 using SignalR.Hubs.Lobby;
-using System.Text;
 
 namespace biddingServer.Controllers.api
 {
@@ -15,35 +13,27 @@ namespace biddingServer.Controllers.api
     [Authorize]
     public class AuctionRooms : ControllerBase
     {
-        private readonly IGroupNameEncoder _encodeGroupName;
+        private readonly IHelperService _helperService;
         private readonly IHubContext<AuctionLobby> _hubContext;
         // private readonly ApplicationDbContext _context;
         private readonly IAuctionRoomService _auctionRoomService;
         public AuctionRooms(
             IHubContext<AuctionLobby> hubContext,
             IAuctionRoomService auctionRoomService,
-            IGroupNameEncoder encodeGroupname)
+            IHelperService helperService)
         {
             // _context = context;
             _hubContext = hubContext;
             _auctionRoomService = auctionRoomService;
-            _encodeGroupName = encodeGroupname;
+            _helperService = helperService;
         }
-        private int GetCurrentUserId()
-        {
-            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            return int.TryParse(userId, out var id) ? id : 0;
-        }
-        private string GetCurrentUserRole()
-        {
-            return User.FindFirst(ClaimTypes.Role)?.Value ?? string.Empty;
-        }
+
 
         [HttpGet("get-rooms")]
         [Authorize]
         public async Task<ActionResult<List<AuctionRoomResponseDTO>>> GetRooms()
         {
-            var userId = GetCurrentUserId();
+            var userId = _helperService.GetCurrentUserId();
             if (userId == 0) return Unauthorized();
 
             var rooms = await _auctionRoomService.GetAuctionRoomsAsync(userId);
@@ -55,7 +45,7 @@ namespace biddingServer.Controllers.api
         [Authorize]
         public async Task<ActionResult<List<AuctionRoomResponseDTO>>> GetPublicRooms()
         {
-            var userId = GetCurrentUserId();
+            var userId = _helperService.GetCurrentUserId();
             if (userId == 0) return Unauthorized();
 
             var rooms = await _auctionRoomService.PublicAuctionRoomsAsync(userId);
@@ -67,7 +57,7 @@ namespace biddingServer.Controllers.api
         [Authorize]
         public async Task<ActionResult<List<AuctionRoomResponseDTO>>> GetManageRooms()
         {
-            var userId = GetCurrentUserId();
+            var userId = _helperService.GetCurrentUserId();
             if (userId == 0) return Unauthorized();
 
             var rooms = _auctionRoomService.ManageAuctionRoomsAsync(userId);
@@ -79,10 +69,10 @@ namespace biddingServer.Controllers.api
         public async Task<ActionResult> UnsubscribeAuctionRoom(
             [FromBody] SubscribeAuctionRoomRequestDTO dto)
         {
-            var userId = GetCurrentUserId();
+            var userId = _helperService.GetCurrentUserId();
             var auctionRoom = await _auctionRoomService.LeaveRoomAsync(dto.RoomId, userId);
             if( auctionRoom != null ) {
-                var roomGroup = _encodeGroupName.EncodeGroupName("lobby", auctionRoom.Value?.Id ?? 0, auctionRoom.Value?.GroupName ?? "");
+                var roomGroup = _helperService.EncodeGroupName("lobby", auctionRoom.Value?.Id ?? 0, auctionRoom.Value?.GroupName ?? "");
                 await _hubContext.Clients.Group(roomGroup).SendAsync("UpdateLobbyAuctionRoomDetails", auctionRoom.Value);
                 return Ok();
             }
@@ -93,11 +83,11 @@ namespace biddingServer.Controllers.api
         public async Task<ActionResult> SubscribeAuctionRoom(
             [FromBody] SubscribeAuctionRoomRequestDTO dto)
         {
-            var userId = GetCurrentUserId();
+            var userId = _helperService.GetCurrentUserId();
             var auctionRoom = await _auctionRoomService.JoinRoomAsync(dto.RoomId, userId);
             if(auctionRoom != null)
             {
-                var roomGroup = _encodeGroupName.EncodeGroupName("lobby", auctionRoom.Value?.Id ?? 0, auctionRoom.Value?.GroupName ?? "");
+                var roomGroup = _helperService.EncodeGroupName("lobby", auctionRoom.Value?.Id ?? 0, auctionRoom.Value?.GroupName ?? "");
                 await _hubContext.Clients.Group(roomGroup).SendAsync("UpdateLobbyAuctionRoomDetails", auctionRoom.Value);
                 return Ok();
             }
@@ -110,10 +100,10 @@ namespace biddingServer.Controllers.api
             [FromBody] CreateAuctionRoomRequestDTO dto)
         {
 
-            var userId = GetCurrentUserId();
+            var userId = _helperService.GetCurrentUserId();
             if (userId == 0) return Unauthorized();
 
-            var role = GetCurrentUserRole();
+            var role = _helperService.GetCurrentUserRole();
             if(role != "Administrator" && role != "Seller" )
             {
                 return StatusCode(StatusCodes.Status403Forbidden, "Not Allowed");
@@ -122,7 +112,7 @@ namespace biddingServer.Controllers.api
             var room = await _auctionRoomService.SaveAuctionRoom(dto, userId);
             if(room == null) return StatusCode(StatusCodes.Status422UnprocessableEntity, "Something went wrong!");
 
-            var roomGroup = _encodeGroupName.EncodeGroupName("lobby", room.Value?.Id ?? 0, room.Value?.GroupName ?? "");
+            var roomGroup = _helperService.EncodeGroupName("lobby", room.Value?.Id ?? 0, room.Value?.GroupName ?? "");
 
             await _hubContext.Clients.Group(roomGroup).SendAsync("UpdateLobbyAuctionRoomDetails", room.Value);
 
@@ -135,7 +125,7 @@ namespace biddingServer.Controllers.api
         // {
         //     if (!ModelState.IsValid) return BadRequest(ModelState);
 
-        //     var userId = GetCurrentUserId();
+        //     var userId = _helperService.GetCurrentUserId();
         //     if (userId == 0) return Unauthorized();
 
         //     var room = await _context.AuctionRooms.FirstOrDefaultAsync(r => r.Id == roomId);
@@ -197,7 +187,7 @@ namespace biddingServer.Controllers.api
         [HttpPost("join")]
         public async Task<IActionResult> JoinRoom([FromBody] JoinAuctionRoomRequestDTO dto)
         {
-            var userId = GetCurrentUserId();
+            var userId = _helperService.GetCurrentUserId();
             if (userId == 0) return Unauthorized();
 
             var res = await _auctionRoomService.JoinRoomAsync(dto.AuctionRoomId, userId);
@@ -208,7 +198,7 @@ namespace biddingServer.Controllers.api
         [HttpPost("leave")]
         public async Task<IActionResult> LeaveRoom([FromBody] LeaveAuctionRoomRequestDTO dto)
         {
-            var userId = GetCurrentUserId();
+            var userId = _helperService.GetCurrentUserId();
             if (userId == 0) return Unauthorized();
             var res = await _auctionRoomService.LeaveRoomAsync(dto.AuctionRoomId, userId);
 
@@ -219,7 +209,7 @@ namespace biddingServer.Controllers.api
         [Authorize(Roles = "3,4")]
         public async Task<IActionResult> CloseRoom(int roomId)
         {
-            var userId = GetCurrentUserId();
+            var userId = _helperService.GetCurrentUserId();
             if (userId == 0) return Unauthorized();
             var res = await _auctionRoomService.CloseAuctionRoom(roomId, userId);
 

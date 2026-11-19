@@ -1,4 +1,4 @@
-using System.Collections.Concurrent;
+ using System.Collections.Concurrent;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
@@ -7,13 +7,15 @@ using biddingServer.services.product;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.IdentityModel.Tokens;
+using SignalR.Hubs.Lobby;
 
 namespace SignalR.Hubs.Room
 {
     [Authorize]
     public class AuctionRoom: Hub
     {
-        private readonly IGroupNameEncoder _encoder;
+        private readonly IHubContext<AuctionLobby> _hubContext;
+        private readonly IHelperService _helperService;
         private readonly IConfiguration _configuration;
         private readonly ConcurrentDictionary<string, RoomUsersDTO> _connections = new();
         private readonly IAuctionRoomService _auctionRoomService;
@@ -21,12 +23,14 @@ namespace SignalR.Hubs.Room
             ConcurrentDictionary<string, RoomUsersDTO> connections,
             IAuctionRoomService auctionRoomService,
             IConfiguration configuration,
-            IGroupNameEncoder encoder)
+            IHelperService helperService,
+            IHubContext<AuctionLobby> hubContext)
         {
             _connections = connections;
             _auctionRoomService = auctionRoomService;
             _configuration = configuration;
-            _encoder = encoder;
+            _helperService = helperService;
+            _hubContext = hubContext;
         }
 
         public override async Task OnConnectedAsync()
@@ -46,8 +50,6 @@ namespace SignalR.Hubs.Room
             };
             _connections[Context.ConnectionId] = connectedUser;
 
-            // await Clients.All.SendAsync("UpdateRoomOnlineUsersList", activeUserList);
-
             await base.OnConnectedAsync();
         }
         public override async Task OnDisconnectedAsync(Exception? exception)
@@ -61,58 +63,7 @@ namespace SignalR.Hubs.Room
 
             await base.OnDisconnectedAsync(exception);
         }
-        // private bool ValidateSignalRToken(string accessToken)
-        // {
 
-        //     if (accessToken != null)
-        //     {
-        //         var tokenHandler = new JwtSecurityTokenHandler();
-        //         try
-        //         {
-        //             // var key = System.Text.Encoding.UTF8.GetBytes("YourSecretKeyHere");
-        //             var principal = tokenHandler.ValidateToken(accessToken, new TokenValidationParameters
-        //             {
-        //                 IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Jwt:Key"] ?? throw new InvalidOperationException("Jwt Signing key not configured"))),
-        //                 ValidIssuer = _configuration["Jwt:Issuer"] ?? throw new InvalidOperationException("Jwt Issuer not configured"),
-        //                 ValidAudience = _configuration["Jwt:Audience"] ?? throw new InvalidOperationException("Jwt Audience not configured"),
-        //                 ValidateIssuerSigningKey = true,
-        //                 ValidateIssuer = true,
-        //                 ValidateAudience = true,
-        //                 ValidateLifetime = true,
-        //                 ClockSkew = TimeSpan.Zero
-        //             }, out SecurityToken validatedToken);
-
-
-        //             // If token is valid, proceed with other checking
-
-        //             // check claims name if it is registered in the _connection directory
-        //             var userEmail = principal.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Email)?.Value;
-        //             if (userEmail != null && _connections.Values.Any(c => c.Email == userEmail))
-        //             {
-        //                 // Token is valid and user is registered
-        //                 Console.WriteLine("BiddingHub : ValidateSignalRToken :" + userEmail);
-        //                 return true;
-        //             }
-        //             else
-        //             {
-        //                 Console.WriteLine("BiddingHub - ValidateSignalRToken :" + userEmail);
-        //                 return false;
-        //             }
-        //         }
-        //         catch
-        //         {
-        //             Console.WriteLine("If signal R token validation fails, close the connection");
-        //             // If token validation fails, close the connection
-        //             return false;
-        //         }
-        //     }
-        //     else
-        //     {
-        //         Console.WriteLine("If signal R token is missing, close the connection");
-        //         // If token is missing, close the connection
-        //         return false;
-        //     }
-        // }
         [ValidateSignalRToken]
         public async Task JoinAuctionRoom(RoomIndex room)
         {
@@ -132,7 +83,7 @@ namespace SignalR.Hubs.Room
                 throw new HubException("Auction room does not exist.");
             // Check if the user host this or a member of this room
 
-            var roomGroup = _encoder.EncodeGroupName("room", room.RoomId, room.GroupName);
+            var roomGroup = _helperService.EncodeGroupName("room", room.RoomId, room.GroupName);
             _connections.AddOrUpdate(
                     Context.ConnectionId,
                     connectedUser,
@@ -143,36 +94,86 @@ namespace SignalR.Hubs.Room
                     }
                 );
             await Groups.AddToGroupAsync(Context.ConnectionId, roomGroup);
+            await Clients.Group(roomGroup).SendAsync("ReceiveRoomMessage",
+                    connectedUser.Fullname!, "Joined the room.");
+            var connList = _connections.Values
+                    .Where(c => c.RoomId == room.RoomId)
+                    .GroupBy(g => g.Email)
+                    .Select(s => s.First())
+                    .ToList();
 
-            // await Clients.Group(roomGroup).SendAsync("UserJoinedLobby", Context.ConnectionId, roomGroup, _connections[Context.ConnectionId]);
+            await Clients.Group(roomGroup)
+                .SendAsync("UpdateRoomOnlineUsersList", connList);
         }
         [ValidateSignalRToken]
         public async Task LeaveAuctionRoom(RoomIndex room)
         {
-            var roomGroup = _encoder.EncodeGroupName("room", room.RoomId, room.GroupName);
+            var roomGroup = _helperService.EncodeGroupName("room", room.RoomId, room.GroupName);
             await Groups.RemoveFromGroupAsync(Context.ConnectionId, roomGroup);
-            _connections.TryRemove(Context.ConnectionId, out _);
+            if(_connections.TryRemove(Context.ConnectionId, out var removeConn))
+            {
+
+                await Clients.Group(roomGroup).SendAsync("ReceiveRoomMessage",
+                    removeConn.Fullname!, "Left the room.");
+
+                await Clients.Group(roomGroup)
+                    .SendAsync("UpdateRoomOnlineUsersList",
+                    _connections.Values
+                    .Where(c => c.RoomId == room.RoomId)
+                    .GroupBy(g => g.Email)
+                    .Select(s => s.First())
+                    .ToList());
+            }
+
 
         }
         [ValidateSignalRToken]
-        public async Task SendProductBid(int productId, decimal amount)
+        public async Task SendProductBid(AuctionRoomProductBid dto)
         {
             // Find which groups this connection belongs to and broadcast
             if (_connections.TryGetValue(Context.ConnectionId, out var connectedUser))
             {
-                var (room, error) = await _auctionRoomService.ProductBidPush(productId, connectedUser.RoomId ?? 0, connectedUser.UserId ?? 0, amount);
+                var (room, error) = await _auctionRoomService.ProductBidPush(dto.RoomProductId, connectedUser.RoomId ?? 0, connectedUser.UserId ?? 0, dto.Amount);
 
-                var roomGroup = _encoder.EncodeGroupName("room", connectedUser.RoomId ?? 0, connectedUser.GroupName ?? "");
-                if( error is null)
+                var roomGroup = _helperService.EncodeGroupName("room", connectedUser.RoomId ?? 0, connectedUser.GroupName ?? "");
+                var lobbyGroup = _helperService.EncodeGroupName("lobby", connectedUser.RoomId ?? 0, connectedUser.GroupName ?? "");
+                if( error is not null)
                 {
-                    await Clients.Group(roomGroup).SendAsync("UpdateRoomMessage", connectedUser.Fullname ?? "Unknown", error);
+                    await Clients.Group(roomGroup).SendAsync("ReceiveRoomMessage", connectedUser.Fullname ?? "Unknown", error);
+                }
+                else if( room is null)
+                {
+                    await Clients.Group(roomGroup).SendAsync("ReceiveRoomMessage", connectedUser.Fullname ?? "Unknown", "Unable to retrieve room update");
                 }
                 else
                 {
-                    await Clients.Group(roomGroup).SendAsync("ReceiveAuctionBid", connectedUser.Fullname ?? "Unknown", room);
+                    var res = new AuctionRoomBidResponseDTO
+                    {
+                        Amount=dto.Amount,
+                        RoomId=room.Id,
+                        Bidder=connectedUser.Fullname ?? "Unknown",
+                        RoomProductId=dto.RoomProductId
+                    };
+
+                    await Clients.Group(roomGroup).SendAsync("ReceiveAuctionBid", res);
+                    await _hubContext.Clients.Group(lobbyGroup).SendAsync("UpdateLobbyAuctionRoomDetails", room);
+
                 }
             }
 
+        }
+        [ValidateSignalRToken]
+        public async Task SendRoomMessage(int roomId, string groupName, string message)
+        {
+            if (!_connections.TryGetValue(
+                Context.ConnectionId,
+                out var connectedUser))
+            {
+                throw new HubException("Invalid user ID.");
+            }
+            var roomGroup = _helperService.EncodeGroupName("room", roomId, groupName);
+            await Clients.Group(roomGroup).SendAsync("ReceiveRoomMessage",
+                    connectedUser.Fullname!, message);
         }
     }
 }

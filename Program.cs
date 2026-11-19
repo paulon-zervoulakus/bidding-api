@@ -101,6 +101,7 @@ builder.Services.AddAuthentication(options =>
 
 // Add Authorization
 builder.Services.AddAuthorization();
+builder.Services.AddHttpContextAccessor();
 
 // Register Services
 builder.Services.AddScoped<IPasswordHasher<AccountModel>, PasswordHasher<AccountModel>>();
@@ -113,7 +114,7 @@ builder.Services.AddScoped<IAuctionRoomService, AuctionRoomService>();
 builder.Services.AddSingleton<ConcurrentDictionary<string, RoomUsersDTO>>();
 builder.Services.AddSingleton(new ConcurrentDictionary<string, ConnectedUsersDTO>());
 builder.Services.AddSingleton<ISignalRTokenValidator, SignalRTokenValidate>();
-builder.Services.AddSingleton<IGroupNameEncoder, GroupNameEncoder>();
+builder.Services.AddSingleton<IHelperService, HelperService>();
 
 builder.Services.AddSignalR(options => options.AddFilter<SignalRTokenFilter>());
 
