@@ -19,5 +19,21 @@ namespace biddingServer.dto.Hubs
     }
     public class RoomIndexList: List<RoomIndex>;
 
+    public class RoomMessage
+    {
+        public string User { get; set; } = "";
+        public string Message { get; set; } = "";
+    }
 
+    public class AuctionRoomProductBid
+    {
+        public int RoomProductId { get; set; }
+        public decimal Amount { get; set; } = 0;
+    }
+    public class AuctionRoomBidResponseDTO: AuctionRoomProductBid
+    {
+        public int RoomId { get; set; }
+        public string Bidder { get; set; } = "";
+
+    }
 }
