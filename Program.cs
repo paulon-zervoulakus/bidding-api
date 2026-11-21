@@ -111,6 +111,10 @@ builder.Services.AddScoped<IProductImagesService, ProductImagesService>();
 builder.Services.AddScoped<IAccountService, AccountService>();
 builder.Services.AddScoped<IAuctionRoomService, AuctionRoomService>();
 
+builder.Services.AddSingleton<AuctionEngineScheduler>();
+builder.Services.AddSingleton<IAuctionEngineScheduler>(sp => sp.GetRequiredService<AuctionEngineScheduler>());
+builder.Services.AddHostedService(sp => sp.GetRequiredService<AuctionEngineScheduler>());
+
 builder.Services.AddSingleton<ConcurrentDictionary<string, RoomUsersDTO>>();
 builder.Services.AddSingleton(new ConcurrentDictionary<string, ConnectedUsersDTO>());
 builder.Services.AddSingleton<ISignalRTokenValidator, SignalRTokenValidate>();
