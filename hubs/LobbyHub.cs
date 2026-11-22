@@ -1,9 +1,8 @@
 using System.Collections.Concurrent;
 using System.Security.Claims;
-using System.Text;
+using biddingServer.Attributes;
 using biddingServer.dto.Hubs;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Mvc.ModelBinding.Binders;
 using Microsoft.AspNetCore.SignalR;
 
 namespace SignalR.Hubs.Lobby
@@ -73,7 +72,7 @@ namespace SignalR.Hubs.Lobby
 
                 await Clients.All.SendAsync("UpdateLobbyOnlineUsersList", activeUserList);
             }
-            await base.OnDisconnectedAsync(exception);
+           await base.OnDisconnectedAsync(exception);
         }
 
         [ValidateSignalRToken]

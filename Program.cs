@@ -5,15 +5,14 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using biddingServer.Models;
-using SignalR.Hubs;
 using biddingServer.services.product;
 using System.Collections.Concurrent;
 using biddingServer.dto.Hubs;
 using biddingServer.services.account;
 using DotNetEnv;
 using SignalR.Hubs.Lobby;
-using Microsoft.AspNetCore.SignalR;
 using SignalR.Hubs.Room;
+using Microsoft.AspNetCore.SignalR;
 
 Env.Load();
 
@@ -113,9 +112,9 @@ builder.Services.AddScoped<IAuctionRoomService, AuctionRoomService>();
 
 builder.Services.AddSingleton<ConcurrentDictionary<string, RoomUsersDTO>>();
 builder.Services.AddSingleton(new ConcurrentDictionary<string, ConnectedUsersDTO>());
-builder.Services.AddSingleton<ISignalRTokenValidator, SignalRTokenValidate>();
 builder.Services.AddSingleton<IHelperService, HelperService>();
 
+builder.Services.AddSingleton<ISignalRTokenValidator, SignalRTokenValidate>();
 builder.Services.AddSignalR(options => options.AddFilter<SignalRTokenFilter>());
 
 var app = builder.Build();
