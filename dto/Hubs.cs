@@ -1,3 +1,5 @@
+using biddingServer.Models;
+
 namespace biddingServer.dto.Hubs
 {
     public class ConnectedUsersDTO
@@ -35,5 +37,14 @@ namespace biddingServer.dto.Hubs
         public int RoomId { get; set; }
         public string Bidder { get; set; } = "";
 
+    }
+    [Flags]
+    public enum HubRoles
+    {
+        None = 0,
+        Guest = (int)RoleEnumerated.Guest, // 1
+        Member = (int)RoleEnumerated.Member, // 2
+        Administrator = (int)RoleEnumerated.Administrator, // 4
+        Seller = (int)RoleEnumerated.Seller // 8
     }
 }

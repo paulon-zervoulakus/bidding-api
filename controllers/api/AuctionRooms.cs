@@ -13,6 +13,7 @@ namespace biddingServer.Controllers.api
     [Authorize]
     public class AuctionRooms : ControllerBase
     {
+        private readonly IAuctionEngineScheduler _auctionScheduler;
         private readonly IHelperService _helperService;
         private readonly IHubContext<AuctionLobby> _hubContext;
         // private readonly ApplicationDbContext _context;
@@ -20,15 +21,26 @@ namespace biddingServer.Controllers.api
         public AuctionRooms(
             IHubContext<AuctionLobby> hubContext,
             IAuctionRoomService auctionRoomService,
-            IHelperService helperService)
+            IHelperService helperService,
+            IAuctionEngineScheduler auctionScheduler)
         {
             // _context = context;
             _hubContext = hubContext;
             _auctionRoomService = auctionRoomService;
             _helperService = helperService;
+            _auctionScheduler = auctionScheduler;
         }
+        [HttpGet("get-room/{roomId}")]
+        [Authorize]
+        public async Task<ActionResult<AuctionRoomResponseDTO>> GetRoomById([FromRoute] int roomId)
+        {
+            var userId = _helperService.GetCurrentUserId();
+            if (userId == 0) return Unauthorized();
 
+            AuctionRoomResponseDTO room = await _auctionRoomService.GetAuctionRoomByIdAsync(roomId);
 
+            return room != null ? Ok(room): NotFound("Room not found");
+        }
         [HttpGet("get-rooms")]
         [Authorize]
         public async Task<ActionResult<List<AuctionRoomResponseDTO>>> GetRooms()
@@ -112,6 +124,24 @@ namespace biddingServer.Controllers.api
             var room = await _auctionRoomService.SaveAuctionRoom(dto, userId);
             if(room == null) return StatusCode(StatusCodes.Status422UnprocessableEntity, "Something went wrong!");
 
+            foreach (var link in room.Value?.RoomProducts!)
+                _auctionScheduler.Schedule(link.Id ?? 0, link.EndBidTime);
+
+            if(room.Value != null)
+            {
+                var toRemove = room.Value.RoomProducts
+                    .Where(rm => !dto.RoomProducts.Any(d => d.ProductId == rm.ProductId))
+                    .ToList();
+
+                foreach (var removed in toRemove)
+                    _auctionScheduler.Cancel(removed.ProductId);
+            }
+            else
+            {
+                foreach (var removed in dto.RoomProducts.ToList())
+                    _auctionScheduler.Cancel(removed.ProductId);
+
+            }
             var roomGroup = _helperService.EncodeGroupName("lobby", room.Value?.Id ?? 0, room.Value?.GroupName ?? "");
 
             await _hubContext.Clients.Group(roomGroup).SendAsync("UpdateLobbyAuctionRoomDetails", room.Value);

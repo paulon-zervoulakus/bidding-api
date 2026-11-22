@@ -1,13 +1,10 @@
- using System.Collections.Concurrent;
-using System.IdentityModel.Tokens.Jwt;
+using System.Collections.Concurrent;
 using System.Security.Claims;
-using System.Text;
 using biddingServer.dto.Hubs;
-using biddingServer.services.product;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
-using Microsoft.IdentityModel.Tokens;
 using SignalR.Hubs.Lobby;
+using biddingServer.Attributes;
 
 namespace SignalR.Hubs.Room
 {
@@ -127,7 +124,8 @@ namespace SignalR.Hubs.Room
 
 
         }
-        [ValidateSignalRToken]
+
+        [ValidateSignalRToken(Roles = HubRoles.Administrator | HubRoles.Seller | HubRoles.Member)]
         public async Task SendProductBid(AuctionRoomProductBid dto)
         {
             // Find which groups this connection belongs to and broadcast
