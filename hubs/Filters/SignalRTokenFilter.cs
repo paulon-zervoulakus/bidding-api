@@ -1,7 +1,7 @@
 using System.Reflection;
 using Microsoft.AspNetCore.SignalR;
-
-public class SignalRTokenFilter : IHubFilter
+using biddingServer.Attributes;
+public sealed class SignalRTokenFilter : IHubFilter
 {
     private readonly ISignalRTokenValidator _validator;
 
@@ -11,18 +11,24 @@ public class SignalRTokenFilter : IHubFilter
         HubInvocationContext context,
         Func<HubInvocationContext, ValueTask<object?>> next)
     {
-        var required =
+        var attrProps =
             context.HubMethod.GetCustomAttribute<ValidateSignalRTokenAttribute>() is not null ||
             context.Hub.GetType().GetCustomAttribute<ValidateSignalRTokenAttribute>() is not null;
 
-        if (required)
+        var attr = context.HubMethod.GetCustomAttribute<ValidateSignalRTokenAttribute>();
+
+        if (attrProps)
         {
             var accessToken = context.Context.GetHttpContext()?
               .Request.Cookies["signalr_token"];
 
             if (!_validator.IsValid(accessToken))
                 throw new HubException("Invalid or expired token.");
+
         }
+
+        if (attr is not null && !attr.RoleCheck (context.Context.User))
+            throw new HubException("Unauthorized: Your role is insufficient");
 
         return await next(context);
     }

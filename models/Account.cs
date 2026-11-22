@@ -26,9 +26,10 @@ namespace biddingServer.Models
     }
     public enum RoleEnumerated
     {
+
         Guest = 1,
         Member = 2,
-        Administrator = 3,
-        Seller = 4
+        Administrator = 4,
+        Seller = 8
     }
 }

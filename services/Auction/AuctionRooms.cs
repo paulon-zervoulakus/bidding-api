@@ -7,6 +7,7 @@ using DTO.Request.AuctionRoom;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Azure;
 using SignalR.Hubs.Room;
+using DTO.Response.Account;
 
 public interface IAuctionRoomService
 {
@@ -20,12 +21,93 @@ public interface IAuctionRoomService
     Task<IActionResult> CloseAuctionRoom(int roomId, int userId);
     Task<bool> IsUserAuthorized(int roomId, int userId);
     Task<(AuctionRoomResponseDTO?, string?)> ProductBidPush(int productId, int roomId, int userId, decimal amount);
+    Task<AuctionRoomResponseDTO> GetAuctionRoomByIdAsync(int roomId);
 
 }
 public class AuctionRoomService : IAuctionRoomService
 {
     private readonly ApplicationDbContext _context;
     public AuctionRoomService(ApplicationDbContext context) => _context = context;
+    public async Task<AuctionRoomResponseDTO> GetAuctionRoomByIdAsync(int roomId)
+    {
+        try
+        {
+            var room = await _context.AuctionRooms
+            .Include(r => r.Host)
+            .Include(r => r.Members)
+            .Include(r => r.AuctionRoomProducts)
+            .Where(r => r.Id == roomId )
+            .Select(r => new AuctionRoomResponseDTO
+            {
+                Id = r.Id,
+                GroupName = r.GroupName,
+                Title = r.Title,
+                Description = r.Description,
+                HostId = r.HostId,
+                HostUserName = r.Host!.UserName,
+                Status = r.Status,
+                Visibility = r.Visibility,
+                CreatedAt = r.CreatedAt,
+                MemberCount = r.Members != null ? r.Members.Count : 0,
+                Members = r.Members != null ? r.Members.Select(m => new AuctionRoomMemberResponseDTO
+                {
+                    UserId = m.Id,
+                    UserName = m.User != null ? m.User.UserName : "",
+                    Email = m.User != null ? m.User.Email : "",
+                    JoinedAt = m.JoinedAt
+                }).ToList() : null,
+                RoomProducts = r.AuctionRoomProducts == null ? null : r.AuctionRoomProducts.Select(rp => new AuctionRoomProductResponseDTO
+                {
+                    Id = rp.Id,
+                    ProductId = rp.ProductId,
+                    LastBidPrice = rp.LastBidPrice,
+                    StartingBidPrice = rp.StartingBidPrice,
+                    MinimumBidIncrement = rp.MinimumBidIncrement,
+                    StartingBidTime = rp.StartingBidTime,
+                    EndBidTime = rp.EndBidTime,
+                    NumberOfBids = rp.NumberOfBids,
+                    CurrentHighBidder = rp.CurrentHighBidder,
+                    ProductDetails = rp.Product == null ? null : new ProductResponseDTO
+                    {
+                        Id = rp.Product.Id,
+                        Title = rp.Product.Title,
+                        Description = rp.Product.Description,
+                        Price = rp.Product.Price,
+                        Quantity = rp.Product.Quantity,
+                        SKU = rp.Product.SKU,
+                        IsSerializable = rp.Product.IsSerializable,
+                        ProductCondition = rp.Product.ProductCondition,
+                        CreatedAt = rp.Product.CreatedAt,
+                        UpdatedAt = rp.Product.UpdatedAt
+                    },
+                    BidHistory = _context.Set<AuctionRoomProductTransactionModel>()
+                        .Where(t => t.AuctionRoomProductId == rp.Id)
+                        .OrderByDescending(t => t.BidTimestamp)
+                        .Select(t => new AuctionRoomProductTransactionResponseDTO
+                        {
+                            Id = t.Id,
+                            Bid = t.Bid,
+                            BidTimestamp = t.BidTimestamp,
+                            AuctionRoomProductId = t.AuctionRoomProductId,
+                            CurrentBidder = t.CurrentBidder == null ? null : new BasicInfoDTO
+                            {
+                                Id = t.CurrentBidder.Id,
+                                UserName = t.CurrentBidder.UserName,
+                                Email = t.CurrentBidder.Email,
+                                FullName = t.CurrentBidder.FullName,
+                            }
+                        })
+                        .ToList()
+                }).ToList()
+            }).FirstOrDefaultAsync();
+
+            return room ?? new AuctionRoomResponseDTO();
+        }catch(Exception ex)
+        {
+            Console.WriteLine(ex);
+            return new AuctionRoomResponseDTO();
+        }
+    }
     public async Task<List<AuctionRoomResponseDTO>> ManageAuctionRoomsAsync(int userId)
     {
         var rooms = await _context.AuctionRooms
@@ -341,6 +423,7 @@ public class AuctionRoomService : IAuctionRoomService
                     link.StartingBidTime = item.StartingBidTime;
                     link.EndBidTime = item.EndBidTime;
                     // LastBidPrice is deliberately not copied from the client
+                    link.NotifiedAt = null;     // reset Notification
                 }
             }
 
@@ -410,12 +493,14 @@ public class AuctionRoomService : IAuctionRoomService
                 .Select(p => new AuctionRoomProductResponseDTO
                 {
                     // Map your properties here
+                    Id = p.Id,
                     ProductId = p.ProductId,
                     StartingBidPrice = p.StartingBidPrice,
                     MinimumBidIncrement = p.MinimumBidIncrement,
                     StartingBidTime = p.StartingBidTime,
                     EndBidTime = p.EndBidTime,
                     LastBidPrice = p.LastBidPrice,
+                    NotifiedAt = p.NotifiedAt,
                     ProductDetails = p.Product != null
                         ? new ProductResponseDTO
                         {
@@ -461,52 +546,67 @@ public class AuctionRoomService : IAuctionRoomService
     }
     public async Task<(AuctionRoomResponseDTO?, string?)> ProductBidPush(int productId, int roomId, int userId, decimal amount)
     {
+
+
         amount = Math.Round(amount, 2);                      // the column is decimal(10, 2)
         if (amount <= 0) return (null, "Bid must be greater than zero.");
 
         // Any early "return false" below disposes the transaction without a commit,
         // which rolls back and releases the lock.
         await using var tx = await _context.Database.BeginTransactionAsync();
-
-        // 1. Lock this product's row: other bidders wait here until we commit or roll back
-        var roomProduct = await _context.AuctionRoomProducts
-            .FromSqlInterpolated($@"
-                SELECT * FROM AuctionRoomProducts WITH (UPDLOCK, ROWLOCK)
-                WHERE ProductId = {productId} AND AuctionRoomId = {roomId}")
-            .FirstOrDefaultAsync();
-
-        if (roomProduct is null) return (null, "This product is not in the room.");               // product isn't in this room
-
-        // The room itself must be open
-        var roomIsActive = await _context.AuctionRooms
-            .AnyAsync(r => r.Id == roomId && r.Status == RoomStatusEnum.Active);
-        if (!roomIsActive) return (null, "This room is not open for bidding.");
-
-        // 2. The bidding window must cover the current time
-        var now = DateTime.UtcNow;
-        if (now < roomProduct.StartingBidTime || now >= roomProduct.EndBidTime)
-            return (null, "Bidding has not started yet.");
-
-        // 3. Minimum bid, read from the locked row so it can't change under us
-        var minimum = roomProduct.LastBidPrice + roomProduct.MinimumBidIncrement;
-        if (amount < minimum) return (null, "Bidding has ended.");
-
-        // 4. Update the product and record the bid in the history table
-        roomProduct.LastBidPrice = amount;
-        roomProduct.CurrentHighBidderID = userId;
-        roomProduct.NumberOfBids = (roomProduct.NumberOfBids ?? 0) + 1;
-
-        _context.Add(new AuctionRoomProductTransactionModel
+        try
         {
-            AuctionRoomProduct = roomProduct,
-            Bid = amount,
-            CurrentBidderID = userId,
-            BidTimestamp = now
-        });
 
-        // 5. Save and release the lock
-        await _context.SaveChangesAsync();
-        await tx.CommitAsync();
+            // 1. Lock this product's row: other bidders wait here until we commit or roll back
+            var roomProduct = await _context.AuctionRoomProducts
+                .FromSqlInterpolated($@"
+                    SELECT * FROM AuctionRoomProducts WITH (UPDLOCK, ROWLOCK)
+                    WHERE ProductId = {productId} AND AuctionRoomId = {roomId}")
+                .FirstOrDefaultAsync();
+
+            if (roomProduct is null) return (null, "This product is not in the room.");               // product isn't in this room
+
+            // The room itself must be open
+            var roomIsActive = await _context.AuctionRooms
+                .AnyAsync(r => r.Id == roomId && r.Status == RoomStatusEnum.Active);
+            if (!roomIsActive) return (null, "This room is not open for bidding.");
+
+            // 2. The bidding window must cover the current time
+            var now = DateTime.UtcNow;
+            if (now < roomProduct.StartingBidTime || now >= roomProduct.EndBidTime)
+                return (null, "Bidding has not started yet.");
+
+            // 3. Minimum bid, read from the locked row so it can't change under us
+            var minimum = roomProduct.LastBidPrice + roomProduct.MinimumBidIncrement;
+            if (amount < minimum) return (null, "Bidding has ended.");
+
+            // 4. Update the product and record the bid in the history table
+            roomProduct.LastBidPrice = amount;
+            roomProduct.CurrentHighBidderID = userId;
+            roomProduct.NumberOfBids = (roomProduct.NumberOfBids ?? 0) + 1;
+
+
+            _context.Add(new AuctionRoomProductTransactionModel
+            {
+                AuctionRoomProduct = roomProduct,
+                Bid = amount,
+                CurrentBidderID = userId,
+                BidTimestamp = now
+            });
+
+            // 5. Save and release the lock
+            await _context.SaveChangesAsync();
+        }catch(Exception err)
+        {
+            Console.WriteLine(err);
+            return (null, "Unable to save changes.");
+        }
+        finally
+        {
+            await tx.CommitAsync();
+
+        }
+
 
         var room = await _context.AuctionRooms
             .Include(r => r.Host)
