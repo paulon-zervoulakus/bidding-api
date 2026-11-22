@@ -50,7 +50,6 @@ namespace biddingServer.Models
         Cancelled = 3,
         Ended = 4
     }
-
     public class AuctionRoomMemberModel
     {
         [Key]
@@ -68,7 +67,6 @@ namespace biddingServer.Models
         [Required]
         public DateTime JoinedAt { get; set; } = DateTime.UtcNow;
     }
-
     public class AuctionRoomProductModel
     {
         [Key]
@@ -94,24 +92,26 @@ namespace biddingServer.Models
         [ForeignKey("AuctionRoomModel")]
         public int? AuctionRoomId { get; set; }
         public AuctionRoomModel? AuctionRoom { get; set; }
+        public DateTime? NotifiedAt { get; set; }
+        public ICollection<AuctionRoomProductTransactionModel>? BidHistory { get; set; } = new List<AuctionRoomProductTransactionModel>();
     }
-
     public class AuctionRoomProductTransactionModel
     {
         [Key]
         public int Id { get; set; }
         [Required]
-        [ForeignKey("AuctionRoomProductModel")]
-        public int AuctionRoomProductId { get; set; }
-        public required AuctionRoomProductModel AuctionRoomProduct { get; set; }
+        public DateTime BidTimestamp { get; set; }
         [Column(TypeName = "decimal(10, 2)")]
         public decimal Bid { get; set; } = 0;
-        [Required]
-        [ForeignKey("AccountModel")]
+
+        [ForeignKey(nameof(AuctionRoomProduct))]
+        public int AuctionRoomProductId { get; set; }
+        public AuctionRoomProductModel? AuctionRoomProduct { get; set; }
+
+
+        [ForeignKey(nameof(CurrentBidder))]
         public int? CurrentBidderID { get; set; }
         public AccountModel? CurrentBidder { get; set; }
-        [Required]
-        public DateTime? BidTimestamp { get; set; }
 
     }
 }

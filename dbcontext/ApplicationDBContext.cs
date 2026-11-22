@@ -46,7 +46,7 @@ public class ApplicationDbContext : DbContext
             .OnDelete(DeleteBehavior.NoAction);
         modelBuilder.Entity<AuctionRoomProductTransactionModel>()
             .HasOne(t => t.AuctionRoomProduct)
-            .WithMany()
+            .WithMany(p => p.BidHistory)
             .HasForeignKey(t => t.AuctionRoomProductId)
             .OnDelete(DeleteBehavior.NoAction);
     }

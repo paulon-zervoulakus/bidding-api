@@ -97,11 +97,11 @@ namespace SignalR.Hubs.Lobby
             // await Clients.Group(roomGroup).SendAsync("UserJoinedLobby", Context.ConnectionId, roomGroup, _connections[Context.ConnectionId]);
 
         }
-        public async Task UnregisterLobbyAuctionRoomList(int[] roomIds, string groupName)
+        public async Task UnregisterLobbyAuctionRoomList(RoomIndexList rooms)
         {
-            foreach(var roomId in roomIds)
+            foreach(var room in rooms)
             {
-                var roomGroup = _helperService.EncodeGroupName("lobby", roomId, groupName);
+                var roomGroup = _helperService.EncodeGroupName("lobby", room.RoomId, room.GroupName);
                 await Groups.RemoveFromGroupAsync(Context.ConnectionId, roomGroup);
 
                 if (_auctionLobbyGroup.TryGetValue(Context.ConnectionId, out var groups))

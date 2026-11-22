@@ -1,4 +1,5 @@
 using biddingServer.Models;
+using DTO.Response.Account;
 using DTO.Response.Product;
 using Humanizer;
 using ImageMagick;
@@ -31,6 +32,7 @@ namespace DTO.Response.AuctionRoom
 
     public class AuctionRoomProductResponseDTO
     {
+        public int? Id { get; set; }
         public int ProductId { get; set; }
         public decimal LastBidPrice { get; set; } = 0;
         public decimal StartingBidPrice { get; set; } = 0;
@@ -40,5 +42,16 @@ namespace DTO.Response.AuctionRoom
         public ProductResponseDTO? ProductDetails { get; set; }
         public AccountModel? CurrentHighBidder { get; set; }
         public int? NumberOfBids { get; set; }
+        public DateTime? NotifiedAt { get; set; }
+        public List<AuctionRoomProductTransactionResponseDTO>? BidHistory { get; set; }
+    }
+    public class AuctionRoomProductTransactionResponseDTO
+    {
+        public int? Id { get; set; }
+        public DateTime BidTimestamp { get; set; }
+        public decimal Bid { get; set; } = 0;
+        public int AuctionRoomProductId { get; set; }
+        public BasicInfoDTO? CurrentBidder { get; set; } = new BasicInfoDTO();
+
     }
 }
