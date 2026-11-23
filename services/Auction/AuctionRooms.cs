@@ -4,11 +4,8 @@ using DTO.Response.Product;
 using biddingServer.Models;
 using Microsoft.AspNetCore.Mvc;
 using DTO.Request.AuctionRoom;
-using Microsoft.AspNetCore.Http.HttpResults;
-using Azure;
-using SignalR.Hubs.Room;
 using DTO.Response.Account;
-
+using Microsoft.AspNetCore.SignalR;
 public interface IAuctionRoomService
 {
     Task<List<AuctionRoomResponseDTO>> ManageAuctionRoomsAsync(int userId);
@@ -377,7 +374,7 @@ public class AuctionRoomService : IAuctionRoomService
                 .Include(r => r.AuctionRoomProducts!)
                     .ThenInclude(rp => rp.Product)
                 .Include(m => m.Members)
-                .FirstOrDefaultAsync(r => r.Id == dto.Id.Value);
+                .FirstOrDefaultAsync(r => r.Id == dto.Id);
 
             if (existingRoom is null)
                 return new NotFoundObjectResult("Room not found.");
@@ -546,67 +543,56 @@ public class AuctionRoomService : IAuctionRoomService
     }
     public async Task<(AuctionRoomResponseDTO?, string?)> ProductBidPush(int productId, int roomId, int userId, decimal amount)
     {
-
-
         amount = Math.Round(amount, 2);                      // the column is decimal(10, 2)
-        if (amount <= 0) return (null, "Bid must be greater than zero.");
+        if (amount <= 0) throw new HubException("Invalid: Bid must be greater than zero.");
 
         // Any early "return false" below disposes the transaction without a commit,
         // which rolls back and releases the lock.
         await using var tx = await _context.Database.BeginTransactionAsync();
-        try
+
+        // 1. Lock this product's row: other bidders wait here until we commit or roll back
+        var roomProduct = await _context.AuctionRoomProducts
+            .FromSqlInterpolated($@"
+                SELECT * FROM AuctionRoomProducts WITH (UPDLOCK, ROWLOCK)
+                WHERE ProductId = {productId} AND AuctionRoomId = {roomId}")
+            .FirstOrDefaultAsync();
+
+        if (roomProduct is null) throw new HubException("Not Found: This product is not in the room.");               // product isn't in this room
+
+        // The room itself must be open
+        var roomIsActive = await _context.AuctionRooms
+            .AnyAsync(r => r.Id == roomId && r.Status == RoomStatusEnum.Active);
+        if (!roomIsActive) throw new HubException("Unauthorized: This room is not open for bidding.");
+
+        // 2. The bidding window must cover the current time
+        var now = DateTime.UtcNow;
+        if (now < roomProduct.StartingBidTime || now >= roomProduct.EndBidTime)
+            throw new HubException("Unauthorized: Bidding has not started yet.");
+
+        // 3. Minimum bid, read from the locked row so it can't change under us
+        var minimum = roomProduct.LastBidPrice + roomProduct.MinimumBidIncrement;
+        if (amount < minimum) throw new HubException("Unauthorized: Bidding has ended.");
+
+        // 4. Check last bidder: if the same user is trying to bid again, reject it
+        if (roomProduct.CurrentHighBidderID == userId)
+            throw new HubException("Invalid: You're already the highest bidder.");
+
+        // 5. Update the product and record the bid in the history table
+        roomProduct.LastBidPrice = amount;
+        roomProduct.CurrentHighBidderID = userId;
+        roomProduct.NumberOfBids = (roomProduct.NumberOfBids ?? 0) + 1;
+
+        _context.Add(new AuctionRoomProductTransactionModel
         {
+            AuctionRoomProduct = roomProduct,
+            Bid = amount,
+            CurrentBidderID = userId,
+            BidTimestamp = now
+        });
 
-            // 1. Lock this product's row: other bidders wait here until we commit or roll back
-            var roomProduct = await _context.AuctionRoomProducts
-                .FromSqlInterpolated($@"
-                    SELECT * FROM AuctionRoomProducts WITH (UPDLOCK, ROWLOCK)
-                    WHERE ProductId = {productId} AND AuctionRoomId = {roomId}")
-                .FirstOrDefaultAsync();
-
-            if (roomProduct is null) return (null, "This product is not in the room.");               // product isn't in this room
-
-            // The room itself must be open
-            var roomIsActive = await _context.AuctionRooms
-                .AnyAsync(r => r.Id == roomId && r.Status == RoomStatusEnum.Active);
-            if (!roomIsActive) return (null, "This room is not open for bidding.");
-
-            // 2. The bidding window must cover the current time
-            var now = DateTime.UtcNow;
-            if (now < roomProduct.StartingBidTime || now >= roomProduct.EndBidTime)
-                return (null, "Bidding has not started yet.");
-
-            // 3. Minimum bid, read from the locked row so it can't change under us
-            var minimum = roomProduct.LastBidPrice + roomProduct.MinimumBidIncrement;
-            if (amount < minimum) return (null, "Bidding has ended.");
-
-            // 4. Update the product and record the bid in the history table
-            roomProduct.LastBidPrice = amount;
-            roomProduct.CurrentHighBidderID = userId;
-            roomProduct.NumberOfBids = (roomProduct.NumberOfBids ?? 0) + 1;
-
-
-            _context.Add(new AuctionRoomProductTransactionModel
-            {
-                AuctionRoomProduct = roomProduct,
-                Bid = amount,
-                CurrentBidderID = userId,
-                BidTimestamp = now
-            });
-
-            // 5. Save and release the lock
-            await _context.SaveChangesAsync();
-        }catch(Exception err)
-        {
-            Console.WriteLine(err);
-            return (null, "Unable to save changes.");
-        }
-        finally
-        {
-            await tx.CommitAsync();
-
-        }
-
+        // 6. Save and release the lock
+        await _context.SaveChangesAsync();
+        await tx.CommitAsync();
 
         var room = await _context.AuctionRooms
             .Include(r => r.Host)
