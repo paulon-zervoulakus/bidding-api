@@ -23,12 +23,12 @@ public sealed class SignalRTokenFilter : IHubFilter
               .Request.Cookies["signalr_token"];
 
             if (!_validator.IsValid(accessToken))
-                throw new HubException("Invalid or expired token.");
+                throw new HubException("Unauthorized: Invalid or expired token.");
 
         }
 
         if (attr is not null && !attr.RoleCheck (context.Context.User))
-            throw new HubException("Unauthorized: Your role is insufficient");
+            throw new HubException("Unauthorized:Your role is insufficient");
 
         return await next(context);
     }
