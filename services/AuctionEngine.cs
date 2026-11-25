@@ -7,6 +7,9 @@ public interface IAuctionEngineScheduler
 {
     void Schedule(int roomProductId, DateTime endUtc);   // start, or move to a new end time
     void Cancel(int roomProductId);
+    int ActiveTimerCount { get; }
+    IReadOnlyCollection<int> ActiveRoomIds { get; }
+
 }
 
 public class AuctionEngineScheduler : IHostedService, IAuctionEngineScheduler
@@ -14,6 +17,8 @@ public class AuctionEngineScheduler : IHostedService, IAuctionEngineScheduler
     private static readonly TimeSpan MaxDelay = TimeSpan.FromDays(20);   // Task.Delay can't wait ~25 days or more
     private readonly IHelperService _helperService;
     private readonly ConcurrentDictionary<int, CancellationTokenSource> _timers = new();
+    public int ActiveTimerCount => _timers.Count;
+    public IReadOnlyCollection<int> ActiveRoomIds => _timers.Keys.ToArray();
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly IHubContext<AuctionRoom> _hubRoom;
     private readonly ILogger<AuctionEngineScheduler> _logger;
