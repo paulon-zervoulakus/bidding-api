@@ -152,6 +152,14 @@ app.UseEndpoints(endpoints =>
     _ = endpoints.MapHub<AuctionLobby>("/subastaHub/lobby");
     _ = endpoints.MapHub<AuctionRoom>("/subastaHub/room");
 });
+if (app.Environment.IsDevelopment())
+{
+    app.MapGet("/debug/timers", (IAuctionEngineScheduler s) => new
+    {
+        count = s.ActiveTimerCount,
+        rooms = s.ActiveRoomIds
+    });
+}
 
 using (var scope = app.Services.CreateScope())
 {

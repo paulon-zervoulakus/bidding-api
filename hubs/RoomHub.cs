@@ -13,19 +13,16 @@ namespace SignalR.Hubs.Room
     {
         private readonly IHubContext<AuctionLobby> _hubContext;
         private readonly IHelperService _helperService;
-        private readonly IConfiguration _configuration;
         private readonly ConcurrentDictionary<string, RoomUsersDTO> _connections = new();
         private readonly IAuctionRoomService _auctionRoomService;
         public AuctionRoom(
             ConcurrentDictionary<string, RoomUsersDTO> connections,
             IAuctionRoomService auctionRoomService,
-            IConfiguration configuration,
             IHelperService helperService,
             IHubContext<AuctionLobby> hubContext)
         {
             _connections = connections;
             _auctionRoomService = auctionRoomService;
-            _configuration = configuration;
             _helperService = helperService;
             _hubContext = hubContext;
         }
