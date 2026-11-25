@@ -24,7 +24,16 @@ public interface IAuctionRoomService
 public class AuctionRoomService : IAuctionRoomService
 {
     private readonly ApplicationDbContext _context;
-    public AuctionRoomService(ApplicationDbContext context) => _context = context;
+    private readonly IAuctionEngineScheduler _scheduler;
+    private readonly int _antiSnipeWindowSeconds;
+    private readonly int _antiSnipeExtensionSeconds;
+    public AuctionRoomService(ApplicationDbContext context, IAuctionEngineScheduler scheduler, IConfiguration configuration)
+    {
+        _context = context;
+        _scheduler = scheduler;
+        _antiSnipeWindowSeconds = configuration.GetValue("Auction:AntiSnipeWindowSeconds", 15);
+        _antiSnipeExtensionSeconds = configuration.GetValue("Auction:AntiSnipeExtensionSeconds", 20);
+    }
     public async Task<AuctionRoomResponseDTO> GetAuctionRoomByIdAsync(int roomId)
     {
         try
@@ -267,14 +276,14 @@ public class AuctionRoomService : IAuctionRoomService
             }).ToList(),
             RoomProducts = room.AuctionRoomProducts == null ? null : room.AuctionRoomProducts.Select(rp => new AuctionRoomProductResponseDTO
             {
-                ProductId = rp.Id,
-                LastBidPrice = rp.LastBidPrice,
-                StartingBidPrice = rp.StartingBidPrice,
-                MinimumBidIncrement = rp.MinimumBidIncrement,
-                StartingBidTime = rp.StartingBidTime,
-                EndBidTime = rp.EndBidTime,
-                NumberOfBids = rp.NumberOfBids,
-                CurrentHighBidder = rp.CurrentHighBidder,
+                    ProductId = rp.ProductId,
+                    LastBidPrice = rp.LastBidPrice,
+                    StartingBidPrice = rp.StartingBidPrice,
+                    MinimumBidIncrement = rp.MinimumBidIncrement,
+                    StartingBidTime = rp.StartingBidTime,
+                    EndBidTime = rp.EndBidTime,
+                    NumberOfBids = rp.NumberOfBids,
+                    CurrentHighBidder = rp.CurrentHighBidder,
                 ProductDetails = rp.Product == null ? null : new ProductResponseDTO
                 {
                     Id = rp.Product.Id,
@@ -339,7 +348,7 @@ public class AuctionRoomService : IAuctionRoomService
                 }).ToList(),
                 RoomProducts = r.AuctionRoomProducts == null ? null : r.AuctionRoomProducts.Select(rp => new AuctionRoomProductResponseDTO
                 {
-                    ProductId = rp.Id,
+                    ProductId = rp.ProductId,
                     LastBidPrice = rp.LastBidPrice,
                     StartingBidPrice = rp.StartingBidPrice,
                     MinimumBidIncrement = rp.MinimumBidIncrement,
@@ -590,9 +599,26 @@ public class AuctionRoomService : IAuctionRoomService
             BidTimestamp = now
         });
 
+        // Anti-sniping: a bid inside the final window pushes the end time out,
+        // so a last-second bid can't win without giving others time to respond.
+        bool extended = false;
+        if (_antiSnipeWindowSeconds > 0 && roomProduct.EndBidTime - now <= TimeSpan.FromSeconds(_antiSnipeWindowSeconds))
+        {
+            var newEnd = now.AddSeconds(_antiSnipeExtensionSeconds);
+            if (newEnd > roomProduct.EndBidTime)
+            {
+                roomProduct.EndBidTime = newEnd;
+                roomProduct.NotifiedAt = null;          // let the scheduler fire again at the new time
+                extended = true;
+            }
+        }
+
         // 6. Save and release the lock
         await _context.SaveChangesAsync();
         await tx.CommitAsync();
+
+        // Re-arm the end-of-auction timer for the (possibly) extended end time
+        if (extended) _scheduler.Schedule(roomProduct.Id, roomProduct.EndBidTime);
 
         var room = await _context.AuctionRooms
             .Include(r => r.Host)
@@ -621,7 +647,7 @@ public class AuctionRoomService : IAuctionRoomService
                 }).ToList(),
                 RoomProducts = r.AuctionRoomProducts == null ? null : r.AuctionRoomProducts.Select(rp => new AuctionRoomProductResponseDTO
                 {
-                    ProductId = rp.Id,
+                    ProductId = rp.ProductId,
                     LastBidPrice = rp.LastBidPrice,
                     StartingBidPrice = rp.StartingBidPrice,
                     MinimumBidIncrement = rp.MinimumBidIncrement,
@@ -644,6 +670,13 @@ public class AuctionRoomService : IAuctionRoomService
                     }
                 }).ToList()
             }).FirstAsync();
+
+        if (extended && room?.RoomProducts is not null)
+        {
+            var extendedProduct = room.RoomProducts.FirstOrDefault(p => p.ProductId == productId);
+            if (extendedProduct is not null) extendedProduct.EndBidTimeExtended = true;
+        }
+
         return (room != null) ? (room, null) : (null, "Someting went wrong");
 
     }
