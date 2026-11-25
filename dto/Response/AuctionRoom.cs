@@ -43,6 +43,7 @@ namespace DTO.Response.AuctionRoom
         public AccountModel? CurrentHighBidder { get; set; }
         public int? NumberOfBids { get; set; }
         public DateTime? NotifiedAt { get; set; }
+        public bool EndBidTimeExtended { get; set; }
         public List<AuctionRoomProductTransactionResponseDTO>? BidHistory { get; set; }
     }
     public class AuctionRoomProductTransactionResponseDTO
