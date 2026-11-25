@@ -142,15 +142,21 @@ namespace SignalR.Hubs.Room
                 }
                 else
                 {
+                    var roomProduct = room.RoomProducts?.FirstOrDefault(p => p.ProductId == dto.RoomProductId);
                     var res = new AuctionRoomBidResponseDTO
                     {
                         Amount=dto.Amount,
                         RoomId=room.Id,
                         Bidder=connectedUser.Fullname ?? "Unknown",
-                        RoomProductId=dto.RoomProductId
+                        RoomProductId=dto.RoomProductId,
+                        Extended=roomProduct?.EndBidTimeExtended ?? false,
+                        EndBidTime=roomProduct?.EndBidTime
                     };
 
                     await Clients.Group(roomGroup).SendAsync("ReceiveAuctionBid", res);
+                    if (res.Extended)
+                        await Clients.Group(roomGroup).SendAsync("ReceiveRoomMessage",
+                            "System", "A bid was placed in the final seconds. The auction has been extended.");
                     await _hubContext.Clients.Group(lobbyGroup).SendAsync("UpdateLobbyAuctionRoomDetails", room);
 
                 }

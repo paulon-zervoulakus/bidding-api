@@ -36,6 +36,8 @@ namespace biddingServer.dto.Hubs
     {
         public int RoomId { get; set; }
         public string Bidder { get; set; } = "";
+        public bool Extended { get; set; }
+        public DateTime? EndBidTime { get; set; }
 
     }
     [Flags]
