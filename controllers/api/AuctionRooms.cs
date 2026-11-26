@@ -72,7 +72,7 @@ namespace biddingServer.Controllers.api
             var userId = _helperService.GetCurrentUserId();
             if (userId == 0) return Unauthorized();
 
-            var rooms = _auctionRoomService.ManageAuctionRoomsAsync(userId);
+            var rooms = await _auctionRoomService.ManageAuctionRoomsAsync(userId);
             return Ok(new { rooms });
         }
 
