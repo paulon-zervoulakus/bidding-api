@@ -125,7 +125,14 @@ namespace biddingServer.Controllers.api
             // 5. Return the updated product
             return Ok(productInDb);
         }
-
+        [HttpPost("delete")]
+        [Authorize(Roles = $"{nameof(RoleEnumerated.Administrator)}, {nameof(RoleEnumerated.Seller)}")]
+        public async Task<IActionResult> ProductDelete([FromBody] int productId)
+        {
+            var existingProduct = await _productService.Delete(productId);
+            if (existingProduct == null) return NotFound("Product not found.");
+            return Ok(existingProduct); // Return the deleted product details
+        }
         [HttpPost("create")]
         [Authorize(Roles = $"{nameof(RoleEnumerated.Administrator)}, {nameof(RoleEnumerated.Seller)}")]
         public async Task<ActionResult<ProductModel>> ProductAddNew([FromBody] RequestDTO.ProductRequestDTO product)
