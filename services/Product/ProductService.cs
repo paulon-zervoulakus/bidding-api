@@ -4,6 +4,8 @@ using biddingServer.Models;
 using ResponseDTO = DTO.Response.Product;
 using Microsoft.EntityFrameworkCore;
 using Azure;
+using DTO.Request.Product;
+using Microsoft.AspNetCore.Mvc;
 
 namespace biddingServer.services.product
 {
@@ -15,6 +17,8 @@ namespace biddingServer.services.product
         Task<List<ResponseDTO.ProductResponseDTO>> GetAll();
         Task<ProductModel> Add(ProductModel product);
         Task<List<ResponseDTO.ProductResponseDTO>> GetByUser(int userId);
+        Task<ProductModel?> Delete(int productId);
+
     }
 
     public class ProductService : IProductService
@@ -35,7 +39,17 @@ namespace biddingServer.services.product
         {
             return await _context.Products.FirstOrDefaultAsync(p => p.SKU == sku);
         }
-
+        public async Task<ProductModel?> Delete(int productId)
+        {
+            var product = await _context.Products.FindAsync(productId);
+            if (product != null)
+            {
+                product.Status = StatusEnum.Deleted; // Mark the product as deleted
+                await _context.SaveChangesAsync();
+                return product;
+            }
+            return null; // Return null if the product was not found
+        }
         public async Task Update(ProductModel product)
         {
             _context.Products.Update(product);

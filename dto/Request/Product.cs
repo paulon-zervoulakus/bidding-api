@@ -45,5 +45,11 @@ namespace DTO.Request.Product
         UsedAcceptable = 5,
         PartsOut = 6
     }
+    public enum StatusEnum
+    {
+        Inactive = 0,
+        Active = 1,
+        Deleted = 2
+    }
 
 }
