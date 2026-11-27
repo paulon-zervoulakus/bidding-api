@@ -71,6 +71,7 @@ namespace biddingServer.services.product
                     SKU = p.SKU,
                     IsSerializable = p.IsSerializable,
                     ProductCondition = p.ProductCondition,
+                    Status = p.Status,
                     Seller = new ResponseDTO.Seller
                     {
                         Id = p.Seller.Id,
@@ -93,6 +94,7 @@ namespace biddingServer.services.product
             var products = await _context.Products
                 .Include(c => c.ProductCategory) // Include the immediate product category
                 .Include(s => s.Seller)
+                .Where(u => u.Status != StatusEnum.Deleted) // Exclude deleted products
                 .Select(p => new ResponseDTO.ProductResponseDTO
                 {
                     Id = p.Id,

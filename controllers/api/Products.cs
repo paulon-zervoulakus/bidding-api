@@ -69,7 +69,7 @@ namespace biddingServer.Controllers.api
             return Ok(new { products });
         }
 
-        [HttpPost("update")]
+        [HttpPut("update")]
         [Authorize(Roles = $"{nameof(RoleEnumerated.Administrator)}, {nameof(RoleEnumerated.Seller)}")]
         public async Task<ActionResult<ProductModel>> ProductUpdate([FromBody] RequestDTO.ProductRequestDTO product)
         {
@@ -125,7 +125,7 @@ namespace biddingServer.Controllers.api
             // 5. Return the updated product
             return Ok(productInDb);
         }
-        [HttpPost("delete")]
+        [HttpDelete("delete")]
         [Authorize(Roles = $"{nameof(RoleEnumerated.Administrator)}, {nameof(RoleEnumerated.Seller)}")]
         public async Task<IActionResult> ProductDelete([FromBody] int productId)
         {
