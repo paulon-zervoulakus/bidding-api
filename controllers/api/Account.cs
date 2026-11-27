@@ -1,21 +1,16 @@
-using System.IdentityModel.Tokens.Jwt;
-using System.Text;
 using DTO.Account;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.IdentityModel.Tokens;
 using biddingServer.Models;
 using biddingServer.services.Tokens;
-using System.Security.Claims;
 using Microsoft.AspNetCore.SignalR;
 using SignalR.Hubs;
 using System.Collections.Concurrent;
 using biddingServer.dto.Hubs;
 using biddingServer.services.account;
-using Microsoft.EntityFrameworkCore.Internal;
-using RequestBasicInfo = DTO.Request.Account.BasicInfoDTO;
+using DTO.Request.Account;
 namespace biddingServer.Controllers.api
 {
     [ApiController]
@@ -105,7 +100,7 @@ namespace biddingServer.Controllers.api
 
             // await _hubContext.Clients.All.SendAsync("UpdateOnlineUsersList", activeUserList);
 
-            return Ok(new { message = "Session ended." });
+            return Ok("Session ended.");
 
         }
 
@@ -189,99 +184,99 @@ namespace biddingServer.Controllers.api
 
         }
 
-        [HttpGet("validate-token")]
-        [Authorize] // Ensure that only authenticated requests can access this endpoint
-        // [ProducesResponseType(StatusCodes.Status200OK)]
-        // [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-        // [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public IActionResult ValidateToken()
-        {
-            var token = Request.Cookies["access_token"];
-            if (token == null)
-                return BadRequest("Invalid Token or expired.");
+        // [HttpGet("validate-token")]
+        // [Authorize] // Ensure that only authenticated requests can access this endpoint
+        // // [ProducesResponseType(StatusCodes.Status200OK)]
+        // // [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        // // [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        // public IActionResult ValidateToken()
+        // {
+        //     var token = Request.Cookies["access_token"];
+        //     if (token == null)
+        //         return BadRequest("Invalid Token or expired.");
 
 
-            try
-            {
-                var tokenHandler = new JwtSecurityTokenHandler();
-                // Validate the token
-                tokenHandler.ValidateToken(token, new TokenValidationParameters
-                {
-                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Jwt:Key"] ?? throw new InvalidOperationException("Secret not configured"))),
-                    ValidIssuer = _configuration["Jwt:Issuer"],
-                    ValidAudience = _configuration["Jwt:Audience"],
-                    // ClockSkew = TimeSpan.Zero,
-                    ValidateLifetime = false,
-                    ValidateIssuerSigningKey = true,
-                    ValidateIssuer = true,
-                    ValidateAudience = true
-                }, out SecurityToken validatedToken);
+        //     try
+        //     {
+        //         var tokenHandler = new JwtSecurityTokenHandler();
+        //         // Validate the token
+        //         tokenHandler.ValidateToken(token, new TokenValidationParameters
+        //         {
+        //             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Jwt:Key"] ?? throw new InvalidOperationException("Secret not configured"))),
+        //             ValidIssuer = _configuration["Jwt:Issuer"],
+        //             ValidAudience = _configuration["Jwt:Audience"],
+        //             // ClockSkew = TimeSpan.Zero,
+        //             ValidateLifetime = false,
+        //             ValidateIssuerSigningKey = true,
+        //             ValidateIssuer = true,
+        //             ValidateAudience = true
+        //         }, out SecurityToken validatedToken);
 
-                var jwtToken = (JwtSecurityToken)validatedToken;
-                var claims = jwtToken.Claims.ToList();
+        //         var jwtToken = (JwtSecurityToken)validatedToken;
+        //         var claims = jwtToken.Claims.ToList();
 
-                var nameIdClaim = claims.FirstOrDefault(x => x.Type == "nameid");
-                if (nameIdClaim == null || !int.TryParse(nameIdClaim.Value, out var id))
-                {
-                    return Unauthorized(new { message = "Invalid token: User ID claim is missing or invalid." });
-                }
+        //         var nameIdClaim = claims.FirstOrDefault(x => x.Type == "nameid");
+        //         if (nameIdClaim == null || !int.TryParse(nameIdClaim.Value, out var id))
+        //         {
+        //             return Unauthorized(new { message = "Invalid token: User ID claim is missing or invalid." });
+        //         }
 
-                var accountProfile = _context.Accounts.FirstOrDefault(x => x.Id == id);
-                if (accountProfile == null) return Unauthorized(new { message = "Invalid Token or expired." });
+        //         var accountProfile = _context.Accounts.FirstOrDefault(x => x.Id == id);
+        //         if (accountProfile == null) return Unauthorized(new { message = "Invalid Token or expired." });
 
-                var refreshToken = claims.FirstOrDefault(x => x.Type == "RefreshToken") ?? null;
-                if (refreshToken == null) return Unauthorized(new { message = "Refresh Token expired." });
+        //         var refreshToken = claims.FirstOrDefault(x => x.Type == "RefreshToken") ?? null;
+        //         if (refreshToken == null) return Unauthorized(new { message = "Refresh Token expired." });
 
-                if (accountProfile.RefreshTokenExpiry < DateTime.UtcNow) return Unauthorized(new { message = "Refresh token expired.." });
+        //         if (accountProfile.RefreshTokenExpiry < DateTime.UtcNow) return Unauthorized(new { message = "Refresh token expired.." });
 
-                var uiHost = _configuration["UI_HOST"] ?? "localhost";
-                // Renew Access Token
-                DateTime expirationDate = DateTime.UtcNow.AddMinutes(_accessTimeoutMinutes);
-                var newtoken = AuthService.GenerateJwtToken(_configuration, accountProfile, expirationDate);
-                var cookieOptions = new CookieOptions
-                {
-                    HttpOnly = true,
-                    Secure = false, // Only send cookie over HTTPS
-                    SameSite = SameSiteMode.Lax, // Adjust based on your needs
-                    Expires = expirationDate,
-                    Path = "/",
-                    Domain = $".{uiHost}"
-                };
-                Response.Cookies.Append("access_token", newtoken, cookieOptions);
+        //         var uiHost = _configuration["UI_HOST"] ?? "localhost";
+        //         // Renew Access Token
+        //         DateTime expirationDate = DateTime.UtcNow.AddMinutes(_accessTimeoutMinutes);
+        //         var newtoken = AuthService.GenerateJwtToken(_configuration, accountProfile, expirationDate);
+        //         var cookieOptions = new CookieOptions
+        //         {
+        //             HttpOnly = true,
+        //             Secure = false, // Only send cookie over HTTPS
+        //             SameSite = SameSiteMode.Lax, // Adjust based on your needs
+        //             Expires = expirationDate,
+        //             Path = "/",
+        //             Domain = $".{uiHost}"
+        //         };
+        //         Response.Cookies.Append("access_token", newtoken, cookieOptions);
 
-                var signalrToken = AuthService.GenerateSignalRToken(_configuration, accountProfile, expirationDate);
-                var signalrCookieOptions = new CookieOptions
-                {
-                    Secure = false, // Only send cookie over HTTPS
-                    SameSite = SameSiteMode.Lax, // Adjust based on your needs
-                    Expires = expirationDate,
-                    HttpOnly = false,
-                    Path = "/",
-                    Domain = $".{uiHost}"
-                };
-                Response.Cookies.Append("signalr_token", signalrToken, signalrCookieOptions);
+        //         var signalrToken = AuthService.GenerateSignalRToken(_configuration, accountProfile, expirationDate);
+        //         var signalrCookieOptions = new CookieOptions
+        //         {
+        //             Secure = false, // Only send cookie over HTTPS
+        //             SameSite = SameSiteMode.Lax, // Adjust based on your needs
+        //             Expires = expirationDate,
+        //             HttpOnly = false,
+        //             Path = "/",
+        //             Domain = $".{uiHost}"
+        //         };
+        //         Response.Cookies.Append("signalr_token", signalrToken, signalrCookieOptions);
 
-                return Ok(new
-                {
-                    status = "token validated",
-                    message = "Access token revalidated and renew.",
-                    accountProfile = new
-                    {
-                        Id = accountProfile.Id,
-                        UserName = accountProfile.UserName,
-                        FullName = accountProfile.FullName,
-                        Email = accountProfile.Email,
-                        Role = (int)accountProfile.Role,
-                        Gender = (int)accountProfile.Gender,
-                        LastLoggedIn = accountProfile.LastLoggedIn
-                    }
-                });
-            }
-            catch (Exception ex)
-            {
-                return Unauthorized(new { message = "Invalid Token or expired.", error = ex.Message });
-            }
-        }
+        //         return Ok(new
+        //         {
+        //             status = "token validated",
+        //             message = "Access token revalidated and renew.",
+        //             accountProfile = new
+        //             {
+        //                 Id = accountProfile.Id,
+        //                 UserName = accountProfile.UserName,
+        //                 FullName = accountProfile.FullName,
+        //                 Email = accountProfile.Email,
+        //                 Role = (int)accountProfile.Role,
+        //                 Gender = (int)accountProfile.Gender,
+        //                 LastLoggedIn = accountProfile.LastLoggedIn
+        //             }
+        //         });
+        //     }
+        //     catch (Exception ex)
+        //     {
+        //         return Unauthorized(new { message = "Invalid Token or expired.", error = ex.Message });
+        //     }
+        // }
 
         [HttpPost("register")]
         public async Task<IActionResult> RegisterAccount([FromBody] RegisterDto registerDto)
@@ -309,10 +304,11 @@ namespace biddingServer.Controllers.api
                 UserName = registerDto.Email.Split('@')[0],
                 FullName = registerDto.Email.Split('@')[0],
                 DateOfBirth = registerDto.DateOfBirth,
-                Password = _passwordHasher.HashPassword(null, registerDto.Password),
+                Password = string.Empty,
                 CreatedDate = DateTime.UtcNow,
                 Role = isTableEmpty ? RoleEnumerated.Administrator : RoleEnumerated.Guest
             };
+            account.Password = _passwordHasher.HashPassword(account, registerDto.Password);
             // Save the user to the database
             _context.Accounts.Add(account);
             await _context.SaveChangesAsync();
@@ -330,7 +326,7 @@ namespace biddingServer.Controllers.api
         [HttpPut("update-profile-basic")]
         [Authorize]
         public async Task<IActionResult> UpdateProfileBasic(
-            [FromBody] RequestBasicInfo profile)
+            [FromBody] BasicInfoDTO profile)
         {
             var userName = HttpContext.User.Identity?.Name ?? "";
 
@@ -339,14 +335,15 @@ namespace biddingServer.Controllers.api
                 return Unauthorized();
             }
 
-            var updatedProfile = await _accountService.UpdateBasicInfo(new RequestBasicInfo{
-                id = profile.id,
-                fullName = profile.fullName,
-                userName = profile.userName,
-                email = profile.email,
-                dateOfBirth = profile.dateOfBirth,
-                role = profile.role,
-                gender = profile.gender
+            var updatedProfile = await _accountService.UpdateBasicInfo(new BasicInfoDTO
+            {
+                Id = profile.Id,
+                FullName = profile.FullName,
+                UserName = profile.UserName,
+                Email = profile.Email,
+                DateOfBirth = profile.DateOfBirth,
+                Role = profile.Role,
+                Gender = profile.Gender
             });
 
             if (updatedProfile == null)

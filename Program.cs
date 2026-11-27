@@ -6,6 +6,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using biddingServer.Models;
 using biddingServer.services.product;
+using biddingServer.services.wallet;
+using biddingServer.services.xendit;
 using System.Collections.Concurrent;
 using biddingServer.dto.Hubs;
 using biddingServer.services.account;
@@ -40,7 +42,10 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 // Add services to the container.
 builder.Services.AddControllers(); // Register the controllers
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen(c =>
+{
+    c.CustomSchemaIds(type => type.FullName); // Use full name to avoid conflicts
+});
 
 builder.Services.AddCors(options =>
 {
@@ -109,6 +114,10 @@ builder.Services.AddScoped<IProductCategoryService, ProductCategoryService>();
 builder.Services.AddScoped<IProductImagesService, ProductImagesService>();
 builder.Services.AddScoped<IAccountService, AccountService>();
 builder.Services.AddScoped<IAuctionRoomService, AuctionRoomService>();
+builder.Services.AddScoped<IWalletService, WalletService>();
+builder.Services.AddScoped<IXenditService, XenditService>();
+builder.Services.AddHttpClient<IXenditService, XenditService>();
+builder.Services.AddDataProtection();
 
 builder.Services.AddSingleton<AuctionEngineScheduler>();
 builder.Services.AddSingleton<IAuctionEngineScheduler>(sp => sp.GetRequiredService<AuctionEngineScheduler>());

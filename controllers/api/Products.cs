@@ -43,10 +43,7 @@ namespace biddingServer.Controllers.api
         public async Task<ActionResult<ProductCategoryModel>> Categories()
         {
             List<ProductCategoryModel> mainCategories = await _productCategoryService.GetMainCategories();
-            return Ok(new
-            {
-                mainCategories
-            });
+            return Ok(mainCategories);
         }
 
         [HttpGet("products")]
@@ -56,7 +53,7 @@ namespace biddingServer.Controllers.api
         {
             // TODO: in the future define a limit of list result
             List<ResponseDTO.ProductResponseDTO> products = await _productService.GetAll();
-            return Ok(new { products });
+            return Ok(products);
         }
         [HttpGet("manage-products")]
         [Authorize(Roles = $"{nameof(RoleEnumerated.Administrator)}, {nameof(RoleEnumerated.Seller)}")]
@@ -66,7 +63,7 @@ namespace biddingServer.Controllers.api
             // TODO: in the future define a limit of list result
             var userId = GetCurrentUserId();
             List<ResponseDTO.ProductResponseDTO> products = await _productService.GetByUser(userId);
-            return Ok(new { products });
+            return Ok(products);
         }
 
         [HttpPut("update")]
@@ -193,7 +190,7 @@ namespace biddingServer.Controllers.api
                 string uploadFolderPath = "uploads/products"; // Relative path for image storage
                 string imagePath = await _productImagesService.UploadImageAsync(imageFile, uploadFolderPath, productId);
 
-                return Ok(new { imagePath });
+                return Ok(imagePath);
             }
             catch (Exception ex)
             {
