@@ -39,7 +39,7 @@ namespace biddingServer.Controllers.api
 
             AuctionRoomResponseDTO room = await _auctionRoomService.GetAuctionRoomByIdAsync(roomId);
 
-            return room != null ? Ok(room): NotFound("Room not found");
+            return room != null ? Ok(room) : NotFound("Room not found");
         }
         [HttpGet("get-rooms")]
         [Authorize]
@@ -50,7 +50,7 @@ namespace biddingServer.Controllers.api
 
             var rooms = await _auctionRoomService.GetAuctionRoomsAsync(userId);
 
-            return Ok(new { rooms });
+            return Ok(rooms);
 
         }
         [HttpGet("get-public-rooms")]
@@ -62,7 +62,7 @@ namespace biddingServer.Controllers.api
 
             var rooms = await _auctionRoomService.PublicAuctionRoomsAsync(userId);
 
-            return Ok(new { rooms });
+            return Ok(rooms);
         }
 
         [HttpGet("get-manage-rooms")]
@@ -73,7 +73,7 @@ namespace biddingServer.Controllers.api
             if (userId == 0) return Unauthorized();
 
             var rooms = await _auctionRoomService.ManageAuctionRoomsAsync(userId);
-            return Ok(new { rooms });
+            return Ok(rooms);
         }
 
         [HttpPost("unsubscribe")]
@@ -83,7 +83,8 @@ namespace biddingServer.Controllers.api
         {
             var userId = _helperService.GetCurrentUserId();
             var auctionRoom = await _auctionRoomService.LeaveRoomAsync(dto.RoomId, userId);
-            if( auctionRoom != null ) {
+            if (auctionRoom != null)
+            {
                 var roomGroup = _helperService.EncodeGroupName("lobby", auctionRoom.Value?.Id ?? 0, auctionRoom.Value?.GroupName ?? "");
                 await _hubContext.Clients.Group(roomGroup).SendAsync("UpdateLobbyAuctionRoomDetails", auctionRoom.Value);
                 return Ok();
@@ -97,7 +98,7 @@ namespace biddingServer.Controllers.api
         {
             var userId = _helperService.GetCurrentUserId();
             var auctionRoom = await _auctionRoomService.JoinRoomAsync(dto.RoomId, userId);
-            if(auctionRoom != null)
+            if (auctionRoom != null)
             {
                 var roomGroup = _helperService.EncodeGroupName("lobby", auctionRoom.Value?.Id ?? 0, auctionRoom.Value?.GroupName ?? "");
                 await _hubContext.Clients.Group(roomGroup).SendAsync("UpdateLobbyAuctionRoomDetails", auctionRoom.Value);
@@ -116,18 +117,18 @@ namespace biddingServer.Controllers.api
             if (userId == 0) return Unauthorized();
 
             var role = _helperService.GetCurrentUserRole();
-            if(role != "Administrator" && role != "Seller" )
+            if (role != "Administrator" && role != "Seller")
             {
                 return StatusCode(StatusCodes.Status403Forbidden, "Not Allowed");
             }
 
             var room = await _auctionRoomService.SaveAuctionRoom(dto, userId);
-            if(room == null) return StatusCode(StatusCodes.Status422UnprocessableEntity, "Something went wrong!");
+            if (room == null) return StatusCode(StatusCodes.Status422UnprocessableEntity, "Something went wrong!");
 
             foreach (var link in room.Value?.RoomProducts!)
                 _auctionScheduler.Schedule(link.Id ?? 0, link.EndBidTime);
 
-            if(room.Value != null)
+            if (room.Value != null)
             {
                 var toRemove = room.Value.RoomProducts
                     .Where(rm => !dto.RoomProducts.Any(d => d.ProductId == rm.ProductId))
@@ -222,7 +223,7 @@ namespace biddingServer.Controllers.api
 
             var res = await _auctionRoomService.JoinRoomAsync(dto.AuctionRoomId, userId);
 
-            return Ok(new { message = "Joined room successfully." });
+            return Ok("Joined room successfully.");
         }
 
         [HttpPost("leave")]
@@ -232,7 +233,7 @@ namespace biddingServer.Controllers.api
             if (userId == 0) return Unauthorized();
             var res = await _auctionRoomService.LeaveRoomAsync(dto.AuctionRoomId, userId);
 
-            return Ok(new { message = "Left room successfully." });
+            return Ok("Left room successfully.");
         }
 
         [HttpPost("close/{roomId}")]
@@ -243,7 +244,7 @@ namespace biddingServer.Controllers.api
             if (userId == 0) return Unauthorized();
             var res = await _auctionRoomService.CloseAuctionRoom(roomId, userId);
 
-            return Ok(new { message = "Room closed." });
+            return Ok("Room closed.");
         }
     }
 }

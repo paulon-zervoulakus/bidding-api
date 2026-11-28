@@ -15,9 +15,10 @@ namespace DTO.Response.Product
         public ProductConditionEnum ProductCondition { get; set; }
         public Seller? Seller { get; set; }
         public int? ProductCategoryId { get; set; }
-        public string? ProductCategoryName { get; set;}
+        public string? ProductCategoryName { get; set; }
         public DateTime CreatedAt { get; set; }
         public DateTime UpdatedAt { get; set; }
+        public StatusEnum Status { get; set; }
     }
 
     public class Seller

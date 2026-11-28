@@ -43,7 +43,7 @@ namespace biddingServer.services.account
         }
         public async Task<BasicInfoDTO> UpdateBasicInfo(RequestBasicInfo account)
         {
-            var accountId = account.id;
+            var accountId = account.Id;
 
             var totalAccounts = await _context.Accounts.CountAsync();
 
@@ -57,12 +57,12 @@ namespace biddingServer.services.account
             var existingAccount = await _context.Accounts
                 .FirstOrDefaultAsync(a => a.Id == accountId);
 
-            existingAccount.UserName = account.userName;
-            existingAccount.FullName = account.fullName;
-            existingAccount.Email = account.email;
-            existingAccount.DateOfBirth = account.dateOfBirth;
-            existingAccount.Role = account.role;
-            existingAccount.Gender = account.gender;
+            existingAccount.UserName = account.UserName;
+            existingAccount.FullName = account.FullName;
+            existingAccount.Email = account.Email;
+            existingAccount.DateOfBirth = account.DateOfBirth;
+            existingAccount.Role = account.Role;
+            existingAccount.Gender = account.Gender;
 
             await _context.SaveChangesAsync();
 
@@ -81,13 +81,13 @@ namespace biddingServer.services.account
         {
             var newAccount = new AccountModel
             {
-                Id = account.id,
-                UserName = account.userName,
-                FullName = account.fullName,
-                Email = account.email,
-                DateOfBirth = account.dateOfBirth,
-                Role = account.role,
-                Gender = account.gender
+                Id = account.Id,
+                UserName = account.UserName,
+                FullName = account.FullName,
+                Email = account.Email,
+                DateOfBirth = account.DateOfBirth,
+                Role = account.Role,
+                Gender = account.Gender
             };
 
             await _context.Accounts.AddAsync(newAccount);

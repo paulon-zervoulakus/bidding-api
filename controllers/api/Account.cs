@@ -1,21 +1,19 @@
-using System.IdentityModel.Tokens.Jwt;
-using System.Text;
 using DTO.Account;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.IdentityModel.Tokens;
 using biddingServer.Models;
 using biddingServer.services.Tokens;
-using System.Security.Claims;
 using Microsoft.AspNetCore.SignalR;
 using SignalR.Hubs;
 using System.Collections.Concurrent;
 using biddingServer.dto.Hubs;
 using biddingServer.services.account;
-using Microsoft.EntityFrameworkCore.Internal;
-using RequestBasicInfo = DTO.Request.Account.BasicInfoDTO;
+using DTO.Request.Account;
+using System.IdentityModel.Tokens.Jwt;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
 namespace biddingServer.Controllers.api
 {
     [ApiController]
@@ -105,7 +103,7 @@ namespace biddingServer.Controllers.api
 
             // await _hubContext.Clients.All.SendAsync("UpdateOnlineUsersList", activeUserList);
 
-            return Ok(new { message = "Session ended." });
+            return Ok("Session ended.");
 
         }
 
@@ -194,7 +192,7 @@ namespace biddingServer.Controllers.api
         // [ProducesResponseType(StatusCodes.Status200OK)]
         // [ProducesResponseType(StatusCodes.Status401Unauthorized)]
         // [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public IActionResult ValidateToken()
+        public async Task<IActionResult> ValidateToken()
         {
             var token = Request.Cookies["access_token"];
             if (token == null)
@@ -223,16 +221,16 @@ namespace biddingServer.Controllers.api
                 var nameIdClaim = claims.FirstOrDefault(x => x.Type == "nameid");
                 if (nameIdClaim == null || !int.TryParse(nameIdClaim.Value, out var id))
                 {
-                    return Unauthorized(new { message = "Invalid token: User ID claim is missing or invalid." });
+                    return Unauthorized("Invalid token: User ID claim is missing or invalid.");
                 }
 
                 var accountProfile = _context.Accounts.FirstOrDefault(x => x.Id == id);
-                if (accountProfile == null) return Unauthorized(new { message = "Invalid Token or expired." });
+                if (accountProfile == null) return Unauthorized("Invalid Token or expired.");
 
                 var refreshToken = claims.FirstOrDefault(x => x.Type == "RefreshToken") ?? null;
-                if (refreshToken == null) return Unauthorized(new { message = "Refresh Token expired." });
+                if (refreshToken == null) return Unauthorized("Refresh Token expired.");
 
-                if (accountProfile.RefreshTokenExpiry < DateTime.UtcNow) return Unauthorized(new { message = "Refresh token expired.." });
+                if (accountProfile.RefreshTokenExpiry < DateTime.UtcNow) return Unauthorized("Refresh token expired..");
 
                 var uiHost = _configuration["UI_HOST"] ?? "localhost";
                 // Renew Access Token
@@ -245,7 +243,7 @@ namespace biddingServer.Controllers.api
                     SameSite = SameSiteMode.Lax, // Adjust based on your needs
                     Expires = expirationDate,
                     Path = "/",
-                    Domain = $".{uiHost}"
+                    Domain = $"{uiHost}"
                 };
                 Response.Cookies.Append("access_token", newtoken, cookieOptions);
 
@@ -257,15 +255,14 @@ namespace biddingServer.Controllers.api
                     Expires = expirationDate,
                     HttpOnly = false,
                     Path = "/",
-                    Domain = $".{uiHost}"
+                    Domain = $"{uiHost}"
                 };
                 Response.Cookies.Append("signalr_token", signalrToken, signalrCookieOptions);
 
-                return Ok(new
+
+                return Ok(new ValidateTokenResponseDTO
                 {
-                    status = "token validated",
-                    message = "Access token revalidated and renew.",
-                    accountProfile = new
+                    AccountProfile = new AccountProfileDTO
                     {
                         Id = accountProfile.Id,
                         UserName = accountProfile.UserName,
@@ -309,10 +306,11 @@ namespace biddingServer.Controllers.api
                 UserName = registerDto.Email.Split('@')[0],
                 FullName = registerDto.Email.Split('@')[0],
                 DateOfBirth = registerDto.DateOfBirth,
-                Password = _passwordHasher.HashPassword(null, registerDto.Password),
+                Password = string.Empty,
                 CreatedDate = DateTime.UtcNow,
                 Role = isTableEmpty ? RoleEnumerated.Administrator : RoleEnumerated.Guest
             };
+            account.Password = _passwordHasher.HashPassword(account, registerDto.Password);
             // Save the user to the database
             _context.Accounts.Add(account);
             await _context.SaveChangesAsync();
@@ -330,7 +328,7 @@ namespace biddingServer.Controllers.api
         [HttpPut("update-profile-basic")]
         [Authorize]
         public async Task<IActionResult> UpdateProfileBasic(
-            [FromBody] RequestBasicInfo profile)
+            [FromBody] BasicInfoDTO profile)
         {
             var userName = HttpContext.User.Identity?.Name ?? "";
 
@@ -339,14 +337,15 @@ namespace biddingServer.Controllers.api
                 return Unauthorized();
             }
 
-            var updatedProfile = await _accountService.UpdateBasicInfo(new RequestBasicInfo{
-                id = profile.id,
-                fullName = profile.fullName,
-                userName = profile.userName,
-                email = profile.email,
-                dateOfBirth = profile.dateOfBirth,
-                role = profile.role,
-                gender = profile.gender
+            var updatedProfile = await _accountService.UpdateBasicInfo(new BasicInfoDTO
+            {
+                Id = profile.Id,
+                FullName = profile.FullName,
+                UserName = profile.UserName,
+                Email = profile.Email,
+                DateOfBirth = profile.DateOfBirth,
+                Role = profile.Role,
+                Gender = profile.Gender
             });
 
             if (updatedProfile == null)

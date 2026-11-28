@@ -36,6 +36,7 @@ namespace biddingServer.Models
         public DateTime CreatedAt { get; set; }
         [Required]
         public DateTime UpdatedAt { get; set; }
+        public StatusEnum Status { get; set; } = StatusEnum.Active;
 
     }
 
