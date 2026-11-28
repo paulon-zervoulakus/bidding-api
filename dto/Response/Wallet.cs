@@ -7,10 +7,10 @@ namespace DTO.Response.Wallet
     {
         public Guid Id { get; set; }
         public int UserId { get; set; }
-    public decimal CashPoints { get; set; }
-    public decimal MeritPoints { get; set; }
-    public decimal MeritRatio { get; set; } = 10m;
-    public string Currency { get; set; } = "PHP";
+        public decimal CashPoints { get; set; }
+        public decimal MeritPoints { get; set; }
+        public decimal MeritRatio { get; set; } = 10m;
+        public string Currency { get; set; } = "PHP";
         public bool IsLocked { get; set; }
         public DateTime CreatedAt { get; set; }
         public DateTime UpdatedAt { get; set; }
@@ -46,7 +46,13 @@ namespace DTO.Response.Wallet
         public string StatusName { get; set; } = "";
         public DateTime CreatedAt { get; set; }
     }
-
+    public class TopUpCompleteResponseDTO : TopUpResponseDTO
+    {
+        public string? XenditPaymentId { get; set; }
+        public string? PaymentMethod { get; set; }
+        public DateTime? PaidAt { get; set; }
+        public DateTime? ExpiresAt { get; set; }
+    }
     public class WithdrawalResponseDTO
     {
         public Guid Id { get; set; }

@@ -24,7 +24,8 @@ namespace biddingServer.services.wallet
             string? description = null,
             decimal? meritRate = null,
             decimal? cashEquivalent = null,
-            TransactionStatus status = TransactionStatus.Completed);
+            TransactionStatus status = TransactionStatus.Completed,
+            CancellationToken ct = default);
         Task<WalletResponseDTO?> GetWalletAsync(int userId);
         Task<List<WalletTransactionResponseDTO>> GetTransactionsAsync(int userId, DateTime? before = null, PointType? pointType = null, int limit = 20);
         Task<TopUpResponseDTO> CreateTopUpAsync(int userId, TopUpRequestDTO dto);
@@ -36,7 +37,16 @@ namespace biddingServer.services.wallet
         Task ReleaseReservationAsync(Guid holdId);
         Task ForfeitReservationAsync(Guid holdId);
         Task GrantMeritAsync(Guid walletId, decimal meritAmount, string source, Guid? referenceId = null);
+        Task<List<TopUpCompleteResponseDTO>> GetTopUpsAsync(int userId, DateTime? before = null, int limit = 20);
+        Task<TopUpCompleteResponseDTO?> VerifyTopUpAsync(int userId, Guid topUpId, CancellationToken ct = default);
+        Task<WalletTopUp?> CreditTopUpAsync(Guid topUpId, decimal paidAmount, string invoiceId, CancellationToken ct = default);
     }
+    public record TopUpVerifyResult
+    (
+        string Status,
+        bool Credited,
+        decimal CashPoints
+    );
 
     public class WalletService : IWalletService
     {
@@ -53,10 +63,8 @@ namespace biddingServer.services.wallet
             _config = config;
             _dataProtection = dataProtection;
         }
-
         private string ProtectAccountNumber(string plain) => _protector.Protect(plain);
         private string UnprotectAccountNumber(string cipher) => _protector.Unprotect(cipher);
-
         public async Task<Wallet> GetOrCreateAsync(int userId)
         {
             var wallet = await _context.Wallets.FirstOrDefaultAsync(w => w.UserId == userId);
@@ -83,7 +91,6 @@ namespace biddingServer.services.wallet
                 return await _context.Wallets.FirstAsync(w => w.UserId == userId);
             }
         }
-
         public async Task<WalletTransaction> ApplyAsync(
             Wallet wallet,
             WalletTransactionType type,
@@ -95,7 +102,8 @@ namespace biddingServer.services.wallet
             string? description = null,
             decimal? meritRate = null,
             decimal? cashEquivalent = null,
-            TransactionStatus status = TransactionStatus.Completed)
+            TransactionStatus status = TransactionStatus.Completed,
+            CancellationToken ct = default)
         {
             var existing = await _context.WalletTransactions.FirstOrDefaultAsync(t => t.IdempotencyKey == idempotencyKey);
             if (existing != null) return existing;
@@ -138,7 +146,6 @@ namespace biddingServer.services.wallet
             _context.WalletTransactions.Add(tx);
             return tx;
         }
-
         private async Task<T> WithRetry<T>(Func<Task<T>> action, int attempts = 3)
         {
             for (int i = 0; i < attempts; i++)
@@ -152,7 +159,6 @@ namespace biddingServer.services.wallet
             }
             throw new InvalidOperationException("unreachable");
         }
-
         public async Task<WalletResponseDTO?> GetWalletAsync(int userId)
         {
             var wallet = await _context.Wallets.AsNoTracking().FirstOrDefaultAsync(w => w.UserId == userId);
@@ -170,7 +176,6 @@ namespace biddingServer.services.wallet
                 UpdatedAt = wallet.UpdatedAt
             };
         }
-
         public async Task<List<WalletTransactionResponseDTO>> GetTransactionsAsync(int userId, DateTime? before = null, PointType? pointType = null, int limit = 20)
         {
             var wallet = await _context.Wallets.AsNoTracking().FirstOrDefaultAsync(w => w.UserId == userId);
@@ -199,7 +204,31 @@ namespace biddingServer.services.wallet
                     CreatedAt = t.CreatedAt
                 }).ToListAsync();
         }
-
+        public async Task<List<TopUpCompleteResponseDTO>> GetTopUpsAsync(int userId, DateTime? before = null, int limit = 20)
+        {
+            var wallet = await _context.Wallets.AsNoTracking().FirstOrDefaultAsync(w => w.UserId == userId);
+            if (wallet == null) return new List<TopUpCompleteResponseDTO>();
+            limit = Math.Clamp(limit, 1, 100);
+            var query = _context.WalletTopUps.AsNoTracking().Where(t => t.WalletId == wallet.Id);
+            if (before.HasValue) query = query.Where(t => t.CreatedAt < before.Value);
+            return await query.OrderByDescending(t => t.CreatedAt)
+                .Take(limit)
+                .Select(t => new TopUpCompleteResponseDTO
+                {
+                    Id = t.Id,
+                    WalletId = t.WalletId,
+                    Amount = t.Amount,
+                    Fee = t.Fee,
+                    XenditReferenceId = t.XenditReferenceId,
+                    XenditPaymentId = t.XenditPaymentId,
+                    PaymentMethod = t.PaymentMethod,
+                    CheckoutUrl = t.CheckoutUrl,
+                    Status = t.Status,
+                    PaidAt = t.PaidAt,
+                    ExpiresAt = t.ExpiresAt,
+                    CreatedAt = t.CreatedAt
+                }).ToListAsync();
+        }
         public async Task<TopUpResponseDTO> CreateTopUpAsync(int userId, TopUpRequestDTO dto)
         {
             var wallet = await GetOrCreateAsync(userId);
@@ -211,10 +240,19 @@ namespace biddingServer.services.wallet
                 throw new InvalidOperationException($"Amount must be between {minAmount} and {maxAmount}.");
 
             var xenditRef = $"topup:{wallet.Id}:{Guid.NewGuid():N}";
+            var uiHost = (_config["UI_HOST"] == "" || _config["UI_PORT"] == "" || _config["UI_PORT"] == "") ?
+                "http://localhost:3000" :
+                $"{_config["UI_PROTOCOL"] ?? "http"}://{_config["UI_HOST"]}:{_config["UI_PORT"]}";
+
+            var successUrl = $"{uiHost}/account/?tab=wallet&topup=success";
+            var failureUrl = $"{uiHost}/account/?tab=wallet&topup=failed";
+
             var invoice = await _xendit.CreateInvoiceAsync(
                 dto.Amount,
                 xenditRef,
-                $"Wallet top-up for user {userId}"
+                $"Wallet top-up for user {userId}",
+                successUrl,
+                failureUrl
             );
 
             var topUp = new WalletTopUp
@@ -246,7 +284,6 @@ namespace biddingServer.services.wallet
                 CreatedAt = topUp.CreatedAt
             };
         }
-
         public async Task<WithdrawalResponseDTO> CreateWithdrawalAsync(int userId, WithdrawalRequestDTO dto)
         {
             var wallet = await GetOrCreateAsync(userId);
@@ -296,7 +333,6 @@ namespace biddingServer.services.wallet
                 CreatedAt = withdrawal.CreatedAt
             };
         }
-
         public async Task<WalletBalanceCheckDTO> CanAffordAsync(int userId, decimal requiredCash, decimal requiredMerit)
         {
             var wallet = await _context.Wallets.AsNoTracking().FirstOrDefaultAsync(w => w.UserId == userId);
@@ -317,7 +353,6 @@ namespace biddingServer.services.wallet
                 ShortfallReason = reasons.Count > 0 ? string.Join(" ", reasons) : null
             };
         }
-
         public async Task<bool> CreditMeritAsync(int userId, decimal merit, string description, string? referenceType = null, Guid? referenceId = null, string? idempotencyKey = null)
         {
             var wallet = await GetOrCreateAsync(userId);
@@ -326,7 +361,6 @@ namespace biddingServer.services.wallet
             await _context.SaveChangesAsync();
             return true;
         }
-
         public async Task<bool> DebitCashAsync(int userId, decimal amount, string description, string? referenceType = null, Guid? referenceId = null, string? idempotencyKey = null)
         {
             var wallet = await GetOrCreateAsync(userId);
@@ -339,7 +373,6 @@ namespace biddingServer.services.wallet
             }
             catch { return false; }
         }
-
         public async Task<ReservationHold> HoldReservationAsync(Guid walletId, Guid auctionId, decimal feeCashPoints)
         {
             return await WithRetry(async () =>
@@ -382,7 +415,6 @@ namespace biddingServer.services.wallet
                 return hold;
             });
         }
-
         public async Task ReleaseReservationAsync(Guid holdId)
         {
             await WithRetryAsync(async () =>
@@ -406,7 +438,6 @@ namespace biddingServer.services.wallet
                 await _context.SaveChangesAsync();
             });
         }
-
         public async Task ForfeitReservationAsync(Guid holdId)
         {
             await WithRetryAsync(async () =>
@@ -431,7 +462,6 @@ namespace biddingServer.services.wallet
                 await _context.SaveChangesAsync();
             });
         }
-
         public async Task GrantMeritAsync(Guid walletId, decimal meritAmount, string source, Guid? referenceId = null)
         {
             await WithRetryAsync(async () =>
@@ -465,7 +495,6 @@ namespace biddingServer.services.wallet
                 await _context.SaveChangesAsync();
             });
         }
-
         private async Task WithRetryAsync(Func<Task> action, int attempts = 3)
         {
             for (int i = 0; i < attempts; i++)
@@ -476,6 +505,134 @@ namespace biddingServer.services.wallet
                     if (i == attempts - 1) throw;
                     await Task.Delay(50 * (i + 1));
                 }
+            }
+        }
+        public async Task<WalletTopUp?> CreditTopUpAsync(Guid topUpId, decimal paidAmount, string invoiceId, CancellationToken ct = default)
+        {
+            for (var attempt = 1; ; attempt++)
+            {
+                var topUp = await _context.WalletTopUps.FirstAsync(t => t.Id == topUpId, ct);
+
+                // Already credited by another path (webhook, earlier verify, sweeper)
+                if (topUp.Status == TopUpStatus.Paid) return null;
+
+                // Safety check: what Xendit says was paid must match what we asked for
+                if (paidAmount != topUp.Amount)
+                    throw new InvalidOperationException(
+                        $"Top-up {topUp.Id}: paid {paidAmount} but expected {topUp.Amount}");
+
+                var wallet = await _context.Wallets.FirstAsync(w => w.Id == topUp.WalletId, ct);
+
+                // 1. Add the ledger row and update the balance (in memory, nothing saved yet)
+                var tx = await ApplyAsync(
+                    wallet,
+                    WalletTransactionType.TopUp,
+                    PointType.Cash,
+                    topUp.Amount,
+                    idempotencyKey: $"topup:{invoiceId}",
+                    referenceType: "TopUp",
+                    referenceId: topUp.Id,
+                    description: "Xendit top-up",
+                    ct: ct);
+
+                // 2. Mark the top-up paid
+                topUp.Status = TopUpStatus.Paid;
+                topUp.PaidAt = DateTime.UtcNow;
+
+                try
+                {
+                    // 3. One SaveChanges = ledger row + wallet balance + top-up status together
+                    await _context.SaveChangesAsync(ct);
+                    return topUp;   // true: this call credited. false: key already existed
+                }
+                catch (DbUpdateConcurrencyException) when (attempt < 3)
+                {
+                    // Someone else changed the wallet at the same moment (Wallet.RowVersion). Retry from fresh data.
+                    _context.ChangeTracker.Clear();
+                }
+            }
+        }
+        public async Task<TopUpCompleteResponseDTO?> VerifyTopUpAsync(int userId, Guid topUpId, CancellationToken ct = default)
+        {
+            var topUp = await _context.WalletTopUps
+                .Join(_context.Wallets, t => t.WalletId, w => w.Id, (t, w) => new { t, w })
+                .Where(x => x.t.Id == topUpId && x.w.UserId == userId)   // ownership check
+                .Select(x => x.t)
+                .FirstOrDefaultAsync(ct);
+            if (topUp is null) return null;                               // controller returns 404
+
+            var wallet = await _context.Wallets.AsNoTracking().FirstAsync(w => w.Id == topUp.WalletId, ct);
+            var defaultTopUpResponse = new TopUpCompleteResponseDTO
+            {
+                Id = topUp.Id,
+                WalletId = topUp.WalletId,
+                Amount = topUp.Amount,
+                Fee = topUp.Fee,
+                XenditReferenceId = topUp.XenditReferenceId,
+                XenditPaymentId = topUp.XenditPaymentId,
+                PaymentMethod = topUp.PaymentMethod,
+                CheckoutUrl = topUp.CheckoutUrl,
+                Status = topUp.Status,
+                PaidAt = topUp.PaidAt,
+                ExpiresAt = topUp.ExpiresAt,
+                CreatedAt = topUp.CreatedAt
+            };
+            if (topUp.Status == TopUpStatus.Paid)
+                return defaultTopUpResponse; // already credited, no need to check Xendit
+
+            if (string.IsNullOrEmpty(topUp.XenditPaymentId))
+                return defaultTopUpResponse; // no Xendit payment ID, cannot verify
+
+            var invoice = await _xendit.GetInvoiceAsync(topUp.XenditPaymentId, ct);
+
+            switch (invoice.Status)
+            {
+                case "PAID":
+                case "SETTLED":
+                    var credited = await CreditTopUpAsync(topUp.Id, invoice.PaidAmount ?? invoice.Amount, invoice.Id, ct);
+                    // wallet = await _context.Wallets.AsNoTracking().FirstAsync(w => w.Id == topUp.WalletId, ct);
+                    // return new("Paid", credited, wallet.CashPoints);
+                    return new TopUpCompleteResponseDTO
+                    {
+                        Id = credited!.Id,
+                        WalletId = credited.WalletId,
+                        Amount = credited.Amount,
+                        Fee = credited.Fee,
+                        XenditReferenceId = credited.XenditReferenceId,
+                        XenditPaymentId = credited.XenditPaymentId,
+                        PaymentMethod = credited.PaymentMethod,
+                        CheckoutUrl = credited.CheckoutUrl,
+                        Status = credited != null ? TopUpStatus.Paid : TopUpStatus.Paid, // already credited or just credited
+                        PaidAt = credited?.PaidAt ?? credited!.PaidAt,
+                        ExpiresAt = credited.ExpiresAt,
+                        CreatedAt = credited.CreatedAt
+                    };
+
+
+                case "EXPIRED":
+                    if (topUp.Status == TopUpStatus.Pending)
+                    {
+                        topUp.Status = TopUpStatus.Expired;
+                        await _context.SaveChangesAsync(ct);
+                    }
+                    return new TopUpCompleteResponseDTO
+                    {
+                        Id = topUp.Id,
+                        WalletId = topUp.WalletId,
+                        Amount = topUp.Amount,
+                        Fee = topUp.Fee,
+                        XenditReferenceId = topUp.XenditReferenceId,
+                        XenditPaymentId = topUp.XenditPaymentId,
+                        PaymentMethod = topUp.PaymentMethod,
+                        CheckoutUrl = topUp.CheckoutUrl,
+                        Status = topUp.Status,
+                        PaidAt = topUp.PaidAt,
+                        ExpiresAt = topUp.ExpiresAt,
+                        CreatedAt = topUp.CreatedAt
+                    };
+
+                default: // PENDING
+                    return defaultTopUpResponse;
             }
         }
     }
